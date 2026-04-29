@@ -1,0 +1,331 @@
+/* فونت Estedad - فقط آفلاین برای امنیت بیشتر */
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/estedad/Estedad-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/estedad/Estedad-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/estedad/Estedad-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Premium Harmony Palette - Light Mode (Teal & Blue inspired by Logo) */
+  --background: 210 40% 98%;      /* Soft Cool White */
+  --foreground: 215 25% 20%;      /* Deep Slate for text (softer than black) */
+
+  --card: 0 0% 100%;              /* White */
+  --card-foreground: 215 25% 20%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 25% 20%;
+
+  /* Primary: Deep Teal from Logo Leaf */
+  --primary: 174 85% 33%;         /* #0D9E91 */
+  --primary-foreground: 210 40% 98%;
+
+  /* Secondary: Professional Blue from Logo Swoosh */
+  --secondary: 205 85% 45%;       /* Vibrant Blue */
+  --secondary-foreground: 210 40% 98%;
+
+  /* Muted: Soft background elements */
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Accent: Lighter Teal for highlights */
+  --accent: 174 60% 94%;          /* Very light teal tint */
+  --accent-foreground: 174 85% 33%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;    /* Soft Slate Border */
+  --input: 214.3 31.8% 91.4%;
+  --ring: 174 85% 33%;            /* Focus ring matches Primary */
+
+  --radius: 0.75rem;
+
+  /* Custom Brand Colors */
+  --brand-gold: 45 93% 47%;       /* Retained for specific UI needs */
+
+  /* Sidebar Specifics - Harmonized */
+  --sidebar-background: 0 0% 100%; /* Clean White Sidebar */
+  --sidebar-foreground: 215 25% 20%;
+  --sidebar-primary: 174 85% 33%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 210 40% 96.1%;
+  --sidebar-accent-foreground: 215 25% 20%;
+  --sidebar-border: 214.3 31.8% 91.4%;
+  --sidebar-ring: 174 85% 33%;
+
+  /* Chart Colors (Updated for Harmony) */
+  --chart-1: 174 85% 33%;  /* Teal */
+  --chart-2: 205 85% 45%;  /* Blue */
+  --chart-3: 262 83% 58%;  /* Purple (Complementary) */
+  --chart-4: 45 93% 47%;   /* Gold (Contrast) */
+  --chart-5: 142 76% 36%;  /* Emerald */
+}
+
+.dark {
+  /* Premium Harmony Palette - Dark Mode */
+  --background: 222 47% 11%;      /* Deep Navy Background */
+  --foreground: 210 40% 98%;      /* Off-white text */
+
+  --card: 222 47% 13%;            /* Slightly lighter Navy */
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222 47% 11%;
+  --popover-foreground: 210 40% 98%;
+
+  /* Primary: Brighter Teal for Dark Mode */
+  --primary: 174 60% 50%;         /* #4DB6AC */
+  --primary-foreground: 222 47% 11%;
+
+  /* Secondary: Brighter Blue */
+  --secondary: 205 70% 60%;       /* #64B5F6 */
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 174 60% 50%;
+
+  /* Sidebar Dark Mode */
+  --sidebar-background: 222 47% 11%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-primary: 174 60% 50%;
+  --sidebar-primary-foreground: 222 47% 11%;
+  --sidebar-accent: 217 33% 17%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 217 33% 17%;
+  --sidebar-ring: 174 60% 50%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Estedad', 'Tahoma', 'Arial', sans-serif;
+    direction: rtl;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight font-bold;
+    line-height: 1.3;
+  }
+
+  html {
+    direction: rtl;
+  }
+}
+
+@layer utilities {
+  .font-iranian {
+    font-family: 'Estedad', 'Tahoma', 'Arial', sans-serif;
+  }
+
+  .number-font {
+    font-family: 'Roboto', sans-serif;
+    direction: ltr;
+    display: inline;
+    unicode-bidi: embed;
+  }
+
+  /* Glassmorphism */
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-lg dark:bg-slate-900/70 dark:border-slate-700/30;
+  }
+
+  .glass-panel-heavy {
+    @apply bg-white/90 backdrop-blur-xl border border-white/20 shadow-xl dark:bg-slate-900/90 dark:border-slate-700/30;
+  }
+
+  .transition-all-smooth {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+
+  .sidebar-item:hover {
+    transform: translateX(-4px);
+  }
+
+  .card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px -10px rgba(0,0,0,0.1);
+    @apply ring-1 ring-primary/10;
+  }
+
+  .upload-area {
+    border: 2px dashed hsl(var(--border));
+    transition: all 0.3s ease;
+  }
+
+  .upload-area:hover {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--primary) / 0.05);
+  }
+
+  .upload-area.drag-over {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--primary) / 0.1);
+  }
+
+  .message-bubble {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .loading-spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Persian number styles */
+  .persian-digits {
+    font-feature-settings: "ss01";
+  }
+
+  /* Custom scrollbar for Persian UI */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+/* Button hover effects */
+.btn-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Status badge styles */
+.status-active {
+  @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+.status-pending {
+  @apply bg-amber-50 text-amber-700 border border-amber-200;
+}
+
+.status-inactive {
+  @apply bg-rose-50 text-rose-700 border border-rose-200;
+}
+
+.status-investment {
+  @apply bg-blue-50 text-blue-700 border border-blue-200;
+}
+
+.status-administrative {
+  @apply bg-slate-50 text-slate-700 border border-slate-200;
+}
+
+/* Header Layout Fixes */
+header {
+  overflow: hidden;
+}
+
+header h1,
+header p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+main {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.main-content {
+  z-index: 10;
+  position: relative;
+}
+
+.sticky-first-col th:first-child,
+.sticky-first-col td:first-child {
+  position: sticky;
+  right: 0;
+  z-index: 10;
+  background-color: hsl(var(--background));
+  box-shadow: -2px 0 5px rgba(0,0,0,0.05);
+}
+
+[dir="rtl"] .sticky-first-col th:first-child,
+[dir="rtl"] .sticky-first-col td:first-child {
+  left: auto;
+  right: 0;
+  box-shadow: -2px 0 5px rgba(0,0,0,0.05);
+}
