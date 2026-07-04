@@ -1,0 +1,1705 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRoute, useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import Header from "@/components/layout/header";
+import Sidebar from "@/components/layout/sidebar";
+import MobileSidebar from "@/components/layout/mobile-sidebar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+import { toPersianNumber, formatPersianCurrency } from "@/lib/persian-utils";
+import DocumentList from "@/components/documents/document-list";
+import CompanyEditModal from "@/components/company/company-edit-modal";
+import { 
+  Building, 
+  FileText, 
+  MapPin,
+  Phone,
+  Calendar,
+  User,
+  ArrowLeft,
+  Download,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  Star,
+  ExternalLink,
+  Briefcase,
+  CreditCard,
+  Shield,
+  Activity,
+  DollarSign,
+  Mail,
+  AlertCircle,
+  Newspaper,
+  RefreshCw,
+  FileSignature,
+  Upload,
+  Brain,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Target,
+  AlertOctagon,
+  Users,
+  Globe,
+  Package,
+  Eye,
+  Trash2
+} from "lucide-react";
+import FormContentViewer from "@/components/form-content-viewer";
+import type { Company } from "@/../../shared/schema";
+import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
+import {
+  BarChart as ReBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  AreaChart as ReAreaChart,
+  Area,
+} from "recharts";
+import { Progress } from "@/components/ui/progress";
+
+export default function EmployeeCompanyView() {
+  const [, params] = useRoute("/employee/companies/:id");
+  const [, setLocation] = useLocation();
+  const companyId = params?.id ? parseInt(params.id) : null;
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Get company data
+  const { data: company, isLoading: companyLoading } = useQuery<Company>({
+    queryKey: [`/api/companies/${companyId}`],
+    enabled: !!companyId,
+  });
+
+  // Get company documents
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
+    queryKey: [`/api/companies/${companyId}/documents`],
+    enabled: !!companyId,
+  });
+
+  // Get form submissions for this company
+  const { data: formSubmissions = [], isLoading: submissionsLoading } = useQuery({
+    queryKey: [`/api/form-submissions`, { companyId }],
+    enabled: !!companyId,
+  });
+
+  // دریافت خدمات اختصاص یافته به شرکت
+  const { data: companyServicesData } = useQuery({
+    queryKey: [`/api/companies/${companyId}/services`, { isActive: true }],
+    enabled: !!companyId
+  });
+
+  const companyServices = companyServicesData?.services || [];
+
+  // دریافت فرم‌های هر خدمت
+  const { data: allServiceForms = [] } = useQuery({
+    queryKey: ["/api/document-requirements", { department: user?.department }],
+    enabled: !!user?.department,
+  });
+
+  // Get Rasmio official data
+  const { data: rasmioData, isLoading: rasmioLoading, refetch: refetchRasmio } = useQuery<any>({
+    queryKey: [`/api/companies/${companyId}/enrich`],
+    enabled: !!companyId && !!company?.nationalId,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
+  });
+
+  // State for manual refresh
+  const [isRefreshingRasmio, setIsRefreshingRasmio] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // State for form viewer
+  const [selectedFormSubmission, setSelectedFormSubmission] = useState<any>(null);
+  const [isFormViewerOpen, setIsFormViewerOpen] = useState(false);
+
+  // AI Analysis data - simplified and fixed
+  const { 
+    data: aiAnalysis, 
+    isFetching: aiFetching, 
+    error: aiError,
+    refetch: refetchAI 
+  } = useQuery({
+    queryKey: [`/api/companies/${companyId}/ai-analysis`],
+    queryFn: async () => {
+      return apiRequest("GET", `/api/companies/${companyId}/ai-analysis`);
+    },
+    enabled: false,
+    staleTime: 1000 * 60 * 2,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
+  });
+
+  // Reprocess tax declaration mutation
+  const reprocessTaxMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/companies/${companyId}/reprocess-tax-declaration`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "✅ عملیات شروع شد",
+        description: "استخراج اطلاعات مالی از اظهارنامه شروع شد. لطفا چند لحظه صبر کنید.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}`] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "❌ خطا",
+        description: error.message || "خطا در پردازش اظهارنامه",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Check for cached analysis on component mount (only for investment employees)
+  const { refetch: checkCachedAnalysis } = useQuery({
+    queryKey: [`/api/companies/${companyId}/ai-analysis-check`],
+    queryFn: async () => {
+      try {
+        // Use onlyCache=true to avoid triggering a long fresh analysis on page load
+        const data = await apiRequest("GET", `/api/companies/${companyId}/ai-analysis?onlyCache=true`);
+        // Only use cached data if it has proper structure
+        if (data && data.teamAnalysis && data.overallRecommendation) {
+          queryClient.setQueryData([`/api/companies/${companyId}/ai-analysis`], data);
+          return data;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: !!companyId && user?.role === 'employee' && user?.department === 'investment',
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true
+  });
+
+  // Smart AI analysis function with better state management
+  const [isManuallyRefreshing, setIsManuallyRefreshing] = useState(false);
+  
+  const refetchAIWithRefresh = async (forceRefresh = false) => {
+    if (forceRefresh) {
+      setIsManuallyRefreshing(true);
+      try {
+        toast({
+          title: "🤖 تولید تحلیل جدید",
+          description: "در حال تولید تحلیل جدید... لطفاً صبر کنید",
+        });
+        
+        const freshData = await apiRequest("GET", `/api/companies/${companyId}/ai-analysis?forceRefresh=true`);
+        
+        // Force React Query to update with fresh data
+        queryClient.setQueryData([`/api/companies/${companyId}/ai-analysis`], freshData);
+        queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/ai-analysis`] });
+        
+        toast({
+          title: "✅ تحلیل جدید آماده شد",
+          description: "تحلیل هوش مصنوعی با موفقیت بروزرسانی شد",
+        });
+      } catch (error) {
+        toast({
+          title: "❌ خطا در تولید تحلیل",
+          description: "متأسفانه در تولید تحلیل جدید خطایی رخ داد",
+          variant: "destructive",
+        });
+      } finally {
+        setIsManuallyRefreshing(false);
+      }
+    } else {
+      refetchAI();
+    }
+  };
+
+  // Delete company mutation (admin only)
+  const deleteCompanyMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/companies/${companyId}`);
+    },
+    onSuccess: () => {
+      setLocation("/employee/companies");
+      toast({
+        title: "موفقیت",
+        description: "شرکت با موفقیت حذف شد",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message || "خطا در حذف شرکت",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete form submission mutation
+  const deleteFormSubmissionMutation = useMutation({
+    mutationFn: async (submissionId: number) => {
+      return apiRequest("DELETE", `/api/form-submissions/${submissionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/form-submissions`, { companyId }] 
+      });
+      toast({
+        title: "موفقیت",
+        description: "فرم با موفقیت حذف شد",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message || "خطا در حذف فرم",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Functions to handle form viewing and deleting
+  const handleViewForm = (submission: any, requirement: any) => {
+    setSelectedFormSubmission({
+      ...submission,
+      requirement: requirement,
+    });
+    setIsFormViewerOpen(true);
+  };
+
+  const handleDeleteForm = (submissionId: number) => {
+    const confirmDelete = window.confirm(
+      "آیا از حذف این فرم اطمینان دارید؟\n\nهشدار: این عمل قابل بازگشت نیست و شرکت باید مجدداً فرم را پر کند."
+    );
+    
+    if (confirmDelete) {
+      deleteFormSubmissionMutation.mutate(submissionId);
+    }
+  };
+
+  if (companyLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50" dir="rtl">
+        <Header />
+        <div className="flex">
+          <Sidebar />
+          <MobileSidebar />
+          <main className="flex-1 mr-0 md:mr-64 p-6">
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-pulse">در حال بارگذاری...</div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div className="min-h-screen bg-gray-50" dir="rtl">
+        <Header />
+        <div className="flex">
+          <Sidebar />
+          <MobileSidebar />
+          <main className="flex-1 mr-0 md:mr-64 p-6">
+            <Card>
+              <CardContent className="p-6 text-center">
+                <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">شرکت یافت نشد</h3>
+                <p className="text-muted-foreground">شرکت درخواستی یافت نشد یا دسترسی به آن ندارید.</p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  const manualRefreshRasmio = async () => {
+    setIsRefreshingRasmio(true);
+    try {
+      // Invalidate the cache first, then refetch
+      await refetchRasmio();
+    } catch (error) {
+      console.error("❌ خطا در به‌روزرسانی اطلاعات رسمیو:", error);
+    } finally {
+      setIsRefreshingRasmio(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50" dir="rtl">
+      <Header />
+      <div className="flex">
+        <Sidebar />
+        <MobileSidebar />
+        
+        <main className="flex-1 mr-0 md:mr-64 p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto px-2 lg:px-0">
+            {/* Header */}
+            <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+              <div className="flex flex-col space-y-4">
+                {/* Top row - Back button */}
+                <div className="flex justify-start">
+                  <Button variant="outline" size="sm" onClick={() => setLocation("/employee/companies")}>
+                    <ArrowLeft className="h-4 w-4 ml-2" />
+                    بازگشت
+                  </Button>
+                </div>
+                
+                {/* Middle row - Company info */}
+                <div className="flex-1">
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{company.name}</h1>
+                  <p className="text-gray-600 text-sm lg:text-base">شناسه ملی: {toPersianNumber(company.nationalId)}</p>
+                </div>
+                
+                {/* Bottom row - Action buttons */}
+                <div className="flex flex-wrap gap-2 justify-start lg:justify-end">
+                  {/* Financial Summary (Ezharname) Actions - Only for Investment Dept */}
+                  {user?.department === 'investment' && (
+                    <>
+                      {company.financialSummaryStatus === 'error' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => reprocessTaxMutation.mutate()}
+                          disabled={reprocessTaxMutation.isPending}
+                          className="bg-red-50 text-red-700 border-red-200"
+                        >
+                          <RefreshCw className={`h-4 w-4 ml-2 ${reprocessTaxMutation.isPending ? 'animate-spin' : ''}`} />
+                          تلاش مجدد پردازش اظهارنامه
+                        </Button>
+                      )}
+                      
+                      {company.financialSummaryStatus === 'processing' && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 animate-pulse py-1 px-3">
+                          <RefreshCw className="h-3 w-3 ml-1 animate-spin" />
+                          در حال استخراج داده‌های مالی...
+                        </Badge>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setLocation(`/employee/companies/${companyId}/financial-summary`)}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 disabled:opacity-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
+                        disabled={!company?.taxDeclarationDocumentId}
+                        title={!company?.taxDeclarationDocumentId ? "ابتدا باید فایل اظهارنامه مالیاتی در بخش مدارک آپلود شود" : ""}
+                      >
+                        <BarChart3 className="h-4 w-4 ml-2" />
+                        خلاصه مالی (اظهارنامه)
+                      </Button>
+                    </>
+                  )}
+
+                  <CompanyEditModal company={company as any} />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/companies/${companyId}/download-all`, {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                          }
+                        });
+                        
+                        if (response.ok) {
+                          const blob = await response.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${company.name}_${company.nationalId}_complete.zip`;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          document.body.removeChild(a);
+                        } else {
+                          alert('خطا در دانلود اطلاعات');
+                        }
+                      } catch (error) {
+                        alert('خطا در دانلود اطلاعات');
+                      }
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    <Download className="h-4 w-4 ml-2" />
+                    <span className="hidden sm:inline">دانلود کامل</span>
+                    <span className="sm:hidden">دانلود</span>
+                  </Button>
+                  
+                  {/* Delete button - only for admins */}
+                  {user?.role === 'admin' && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => {
+                        const confirmDelete = window.confirm(
+                          `آیا از حذف شرکت "${company.name}" اطمینان دارید؟\n\nهشدار: این عمل قابل بازگشت نیست و تمام اطلاعات، مدارک و فرم‌های مرتبط حذف خواهد شد.`
+                        );
+                        
+                        if (confirmDelete) {
+                          deleteCompanyMutation.mutate();
+                        }
+                      }}
+                      disabled={deleteCompanyMutation.isPending}
+                      className="whitespace-nowrap"
+                    >
+                      <Trash2 className="h-4 w-4 ml-2" />
+                      <span className="hidden sm:inline">
+                        {deleteCompanyMutation.isPending ? 'در حال حذف...' : 'حذف شرکت'}
+                      </span>
+                      <span className="sm:hidden">
+                        {deleteCompanyMutation.isPending ? 'حذف...' : 'حذف'}
+                      </span>
+                    </Button>
+                  )}
+                  <Badge 
+                    variant={
+                      company.status === "approved" ? "default" : 
+                      company.status === "pending" ? "secondary" : 
+                      "destructive"
+                    }
+                    className="text-sm whitespace-nowrap px-3 py-1"
+                  >
+                    {company.status === "approved" && "تایید شده"}
+                    {company.status === "pending" && "در انتظار بررسی"}
+                    {company.status === "rejected" && "رد شده"}
+                    {company.status === "suspended" && "تعلیق شده"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 gap-1">
+                <TabsTrigger value="overview" className="text-xs lg:text-sm">اطلاعات کلی</TabsTrigger>
+                <TabsTrigger value="official" className="text-xs lg:text-sm">اطلاعات رسمیو</TabsTrigger>
+                <TabsTrigger value="documents" className="text-xs lg:text-sm">مدارک</TabsTrigger>
+                <TabsTrigger value="forms" className="text-xs lg:text-sm">فرم‌ها</TabsTrigger>
+                <TabsTrigger value="reports" className="text-xs lg:text-sm">گزارشات</TabsTrigger>
+                {user?.department === "administrative" && (
+                  <TabsTrigger value="contract-generation" className="text-xs lg:text-sm col-span-2 lg:col-span-1">تولید قرارداد</TabsTrigger>
+                )}
+                {user?.department === "investment" && (
+                  <TabsTrigger value="ai-analysis" className="text-xs lg:text-sm col-span-2 lg:col-span-1">تحلیل هوش مصنوعی</TabsTrigger>
+                )}
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building className="h-5 w-5" />
+                        اطلاعات پایه
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">نام شرکت</label>
+                        <p className="text-lg">{company.name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">شناسه ملی</label>
+                        <p className="text-lg font-mono">{toPersianNumber(company.nationalId)}</p>
+                      </div>
+                      {company.registrationNumber && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">شماره ثبت</label>
+                          <p className="text-lg">{toPersianNumber(company.registrationNumber)}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">وضعیت</label>
+                        <div className="mt-1">
+                          <Badge 
+                            variant={
+                              company.status === "approved" ? "default" : 
+                              company.status === "pending" ? "secondary" : 
+                              "destructive"
+                            }
+                          >
+                            {company.status === "approved" && "تایید شده"}
+                            {company.status === "pending" && "در انتظار بررسی"}
+                            {company.status === "rejected" && "رد شده"}
+                            {company.status === "suspended" && "تعلیق شده"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        اطلاعات تماس
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {company.address && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">آدرس</label>
+                          <p className="text-lg">{company.address}</p>
+                        </div>
+                      )}
+                      {company.phone && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">تلفن</label>
+                          <p className="text-lg">{toPersianNumber(company.phone)}</p>
+                        </div>
+                      )}
+                      {company.email && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">ایمیل</label>
+                          <p className="text-lg">{company.email}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      اطلاعات ثبتی
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">نوع شرکت</label>
+                      <p className="text-lg">{company.type}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">تاریخ ثبت</label>
+                      <p className="text-lg">{company.createdAt ? new Date(company.createdAt).toLocaleDateString('fa-IR') : 'نامشخص'}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="official" className="space-y-6">
+                {rasmioLoading ? (
+                  <Card>
+                    <CardContent className="p-6 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-muted-foreground">در حال بارگذاری اطلاعات رسمی...</p>
+                    </CardContent>
+                  </Card>
+                ) : rasmioData?.basicInfo ? (
+                  <div className="space-y-6">
+                    {/* اطلاعات پایه شرکت */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Building className="h-5 w-5" />
+                            اطلاعات رسمی شرکت
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={manualRefreshRasmio}
+                              disabled={isRefreshingRasmio}
+                              className="mr-auto"
+                            >
+                              <RefreshCw className={`h-4 w-4 ${isRefreshingRasmio ? 'animate-spin' : ''}`} />
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">نام شرکت</label>
+                            <p className="text-lg">{rasmioData.basicInfo.title || 'نامشخص'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">شناسه ملی</label>
+                            <p className="text-lg font-mono">{rasmioData.basicInfo.id ? toPersianNumber(rasmioData.basicInfo.id.toString()) : 'نامشخص'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">شماره ثبت</label>
+                            <p className="text-lg">{rasmioData.basicInfo.registrationNo ? toPersianNumber(rasmioData.basicInfo.registrationNo) : 'نامشخص'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">نوع شرکت</label>
+                            <p className="text-lg">{rasmioData.basicInfo.registrationType?.wordUsedToShow || 'نامشخص'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">وضعیت</label>
+                            <div className="mt-1">
+                              <Badge variant={rasmioData.basicInfo.status === 'فعال' ? 'default' : 'secondary'}>
+                                {rasmioData.basicInfo.status || 'نامشخص'}
+                              </Badge>
+                            </div>
+                          </div>
+                          {rasmioData.basicInfo.persianRegistrationDate && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">تاریخ ثبت</label>
+                              <p className="text-lg">{toPersianNumber(rasmioData.basicInfo.persianRegistrationDate)}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <MapPin className="h-5 w-5" />
+                            آدرس و تماس
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {rasmioData.basicInfo.address && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">آدرس</label>
+                              <p className="text-sm leading-relaxed">{rasmioData.basicInfo.address}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.tel && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">تلفن</label>
+                              <p className="text-lg font-mono">{toPersianNumber(rasmioData.basicInfo.tel)}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.mobile && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">موبایل</label>
+                              <p className="text-lg font-mono">{toPersianNumber(rasmioData.basicInfo.mobile)}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.email && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">ایمیل</label>
+                              <p className="text-lg">{rasmioData.basicInfo.email}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.postalCode && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">کد پستی</label>
+                              <p className="text-lg font-mono">{toPersianNumber(rasmioData.basicInfo.postalCode)}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <CreditCard className="h-5 w-5" />
+                            اطلاعات مالی و ثبتی
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {rasmioData.basicInfo.capital && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">سرمایه ثبتی</label>
+                              <p className="text-lg font-semibold text-green-600">
+                                {formatPersianCurrency(rasmioData.basicInfo.capital)} ریال
+                              </p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.edareKol && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">اداره کل ثبت</label>
+                              <p className="text-sm">{rasmioData.basicInfo.edareKol}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.vahedSabti && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">واحد ثبت</label>
+                              <p className="text-sm">{rasmioData.basicInfo.vahedSabti}</p>
+                            </div>
+                          )}
+                          {rasmioData.basicInfo.lastUpdate && (
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">آخرین بروزرسانی</label>
+                              <p className="text-sm">{new Date(rasmioData.basicInfo.lastUpdate).toLocaleDateString('fa-IR')}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {rasmioData.basicInfo.website && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Globe className="h-5 w-5" />
+                              اطلاعات آنلاین
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">وب‌سایت</label>
+                              <a 
+                                href={rasmioData.basicInfo.website.startsWith('http') ? rasmioData.basicInfo.website : `https://${rasmioData.basicInfo.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                              >
+                                {rasmioData.basicInfo.website}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+
+                    {/* آگهی‌های روزنامه رسمی */}
+                    {rasmioData.news && rasmioData.news.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Newspaper className="h-5 w-5" />
+                            آگهی‌های روزنامه رسمی
+                            <Badge variant="outline" className="mr-2">
+                              {toPersianNumber(rasmioData.news.length)} آگهی
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {rasmioData.news.map((newsItem: any, index: number) => (
+                              <div key={newsItem.id || index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-medium text-lg">{newsItem.title}</h4>
+                                  <Badge variant="secondary" className="text-xs">
+                                    شماره {toPersianNumber(newsItem.newspaperNumber || 'نامشخص')}
+                                  </Badge>
+                                </div>
+                                
+                                {newsItem.description && (
+                                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                                    {newsItem.description}
+                                  </p>
+                                )}
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground">
+                                  {newsItem.newspaperDate && (
+                                    <div>
+                                      <span className="font-medium">تاریخ چاپ:</span>
+                                      <br />
+                                      {new Date(newsItem.newspaperDate).toLocaleDateString('fa-IR')}
+                                    </div>
+                                  )}
+                                  {newsItem.newspaperCityType && (
+                                    <div>
+                                      <span className="font-medium">نوع روزنامه:</span>
+                                      <br />
+                                      {newsItem.newspaperCityType}
+                                    </div>
+                                  )}
+                                  {newsItem.pageNumber && (
+                                    <div>
+                                      <span className="font-medium">صفحه:</span>
+                                      <br />
+                                      {toPersianNumber(newsItem.pageNumber)}
+                                    </div>
+                                  )}
+                                  {newsItem.capitalTo && (
+                                    <div>
+                                      <span className="font-medium">سرمایه جدید:</span>
+                                      <br />
+                                      <span className="text-green-600 font-medium">
+                                        {formatPersianCurrency(newsItem.capitalTo)} ریال
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* پیام در صورت عدم وجود آگهی */}
+                    {rasmioData.news && rasmioData.news.length === 0 && (
+                      <Card>
+                        <CardContent className="p-6 text-center">
+                          <Newspaper className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium mb-2">آگهی‌های روزنامه رسمی</h3>
+                          <p className="text-muted-foreground">
+                            هیچ آگهی‌ای در روزنامه رسمی برای این شرکت ثبت نشده است.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* پیام خطا در صورت وجود */}
+                    {rasmioData.error && (
+                      <Card className="border-yellow-200 bg-yellow-50">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <h4 className="font-medium text-yellow-800 mb-1">توجه</h4>
+                              <p className="text-sm text-yellow-700">{rasmioData.error}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="p-6 text-center">
+                      <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">اطلاعات رسمی در دسترس نیست</h3>
+                      <p className="text-muted-foreground mb-4">
+                        امکان دریافت اطلاعات رسمی این شرکت از رسمیو وجود ندارد یا خطایی رخ داده است.
+                      </p>
+                      <Button onClick={manualRefreshRasmio} disabled={isRefreshingRasmio}>
+                        <RefreshCw className={`h-4 w-4 ml-2 ${isRefreshingRasmio ? 'animate-spin' : ''}`} />
+                        تلاش مجدد
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="documents" className="space-y-6">
+                <DocumentList 
+                  companyId={company.id} 
+                />
+              </TabsContent>
+
+              <TabsContent value="forms" className="space-y-6">
+                {/* نمایش فرم‌ها بر اساس خدمات */}
+                <div className="space-y-6">
+                  {companyServices.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                        <p className="text-muted-foreground">
+                          هیچ خدمتی به این شرکت اختصاص نیافته است
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    companyServices.map((service: any) => {
+                      // دریافت فرم‌های مرتبط با این خدمت
+                      const serviceForms = (allServiceForms as any[]).filter((form: any) => 
+                        form.department === service.serviceDepartment
+                      );
+
+                      return (
+                        <Card key={service.id}>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Package className="h-5 w-5 text-blue-600" />
+                              {service.serviceTitle}
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                              {service.serviceDescription}
+                            </p>
+                          </CardHeader>
+                          <CardContent>
+                            {serviceForms.length === 0 ? (
+                              <div className="text-center py-8 text-gray-500">
+                                هیچ فرمی برای این خدمت تعریف نشده است
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {serviceForms.map((requirement: any) => {
+                                const submission = (formSubmissions as any[]).find(sub => 
+                                  sub.requirementId === requirement.id
+                                );
+                                return (
+                                  <div key={requirement.id} className="border rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="font-medium">{requirement.title}</h4>
+                                      <div className="flex gap-2">
+                                        {submission ? (
+                                          <Badge className="bg-green-100 text-green-800">
+                                            <CheckCircle className="w-3 h-3 ml-1" />
+                                            تکمیل شده
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline">
+                                            <Clock className="w-3 h-3 ml-1" />
+                                            در انتظار تکمیل
+                                          </Badge>
+                                        )}
+                                        <Badge variant="secondary">
+                                          {submission ? new Date(submission.createdAt).toLocaleDateString('fa-IR') : ''}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-2">{requirement.description}</p>
+                                    {submission && (
+                                      <div className="space-y-2">
+                                        <div className="text-sm text-muted-foreground">
+                                          <p>تعداد فیلدها: {Object.keys(JSON.parse(submission.formData) || {}).length}</p>
+                                          <p>وضعیت: {submission.status === 'approved' ? 'تایید شده' : submission.status === 'rejected' ? 'رد شده' : 'در انتظار بررسی'}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleViewForm(submission, requirement)}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Eye className="h-3 w-3" />
+                                            مشاهده
+                                          </Button>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => handleDeleteForm(submission.id)}
+                                            disabled={deleteFormSubmissionMutation.isPending}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                            حذف
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reports" className="space-y-6">
+                {(() => {
+                  // ---------------- Dummy sample data --------------
+                  const kpis = [
+                    { id: 1, label: "سرمایه تعهد شده", value: 5000000000, icon: DollarSign },
+                    { id: 2, label: "سرمایه تزریق‌شده", value: 2000000000, icon: Download },
+                    { id: 3, label: "پیشرفت مایلستون", value: 65, icon: Activity, isPercent: true },
+                    { id: 4, label: "مانده تعهد پرداخت", value: 3000000000, icon: CreditCard },
+                    { id: 5, label: "Days Past Due", value: 12, icon: Clock, unit: "روز" },
+                    { id: 6, label: "Risk Score", value: 4, icon: AlertTriangle, unit: "/ 10" },
+                  ];
+
+                  const revenueVsPlan = [
+                    { month: "فروردین", actual: 400, plan: 350 },
+                    { month: "اردیبهشت", actual: 420, plan: 380 },
+                    { month: "خرداد", actual: 450, plan: 400 },
+                    { month: "تیر", actual: 480, plan: 450 },
+                    { month: "مرداد", actual: 520, plan: 500 },
+                    { month: "شهریور", actual: 560, plan: 540 },
+                  ];
+
+                  const payments = [
+                    { month: "فروردین", paid: 200 },
+                    { month: "اردیبهشت", paid: 220 },
+                    { month: "خرداد", paid: 260 },
+                    { month: "تیر", paid: 300 },
+                    { month: "مرداد", paid: 330 },
+                    { month: "شهریور", paid: 360 },
+                  ];
+
+                  const milestonePercent = 65;
+
+                  const costSplit = [
+                    { name: "حقوق", value: 40 },
+                    { name: "بازاریابی", value: 25 },
+                    { name: "تحقیق و توسعه", value: 20 },
+                    { name: "سایر", value: 15 },
+                  ];
+
+                  const pieColors = ["#60a5fa", "#fb7185", "#fbbf24", "#34d399"];
+
+                  const industriesRisk = [
+                    { area: "بازار", risk: 3 },
+                    { area: "تکنولوژی", risk: 4 },
+                    { area: "منابع انسانی", risk: 2 },
+                    { area: "مالی", risk: 5 },
+                    { area: "مقررات", risk: 4 },
+                  ];
+
+                  // -------------------------------------------------
+
+                  return (
+                    <>
+                      {/* KPI Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        {kpis.map((kpi) => (
+                          <Card key={kpi.id} className="card-hover">
+                            <CardContent className="p-4 flex items-center gap-4">
+                              <kpi.icon className="h-6 w-6 text-primary" />
+                              <div>
+                                <p className="text-sm text-muted-foreground mb-1">{kpi.label}</p>
+                                <p className="font-bold text-lg">
+                                  {kpi.isPercent ? (
+                                    <>
+                                      {toPersianNumber(kpi.value)}%
+                                    </>
+                                  ) : (
+                                    <>
+                                      {formatPersianCurrency(kpi.value)} {kpi.unit || ""}
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Revenue vs Plan & Payments Charts */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        {/* Revenue vs Plan */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <TrendingUp className="h-5 w-5" /> درآمد واقعی در برابر برنامه
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ChartContainer config={{}} className="h-64">
+                              <ReAreaChart data={revenueVsPlan} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="month" />
+                                <YAxis />
+                                <ChartTooltipContent />
+                                <Area type="monotone" dataKey="plan" stroke="#94a3b8" fill="#cbd5e1" name="برنامه" />
+                                <Area type="monotone" dataKey="actual" stroke="#3b82f6" fill="#dbeafe" name="واقعی" />
+                                <ChartLegendContent />
+                              </ReAreaChart>
+                            </ChartContainer>
+                          </CardContent>
+                        </Card>
+
+                        {/* Payments bar chart */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <CreditCard className="h-5 w-5" /> اقساط / مطالبات وصول‌شده
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ChartContainer config={{}} className="h-64">
+                              <ReBarChart data={payments} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="month" />
+                                <YAxis />
+                                <ChartTooltipContent />
+                                <Bar dataKey="paid" fill="#10b981" name="وصول شده" />
+                              </ReBarChart>
+                            </ChartContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Milestone progress & Cost Split */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        {/* Milestone */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Activity className="h-5 w-5" /> پیشرفت مایلستون‌ها
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="mb-2 text-sm">{toPersianNumber(milestonePercent)}% تکمیل شده</p>
+                            <Progress value={milestonePercent} />
+                          </CardContent>
+                        </Card>
+
+                        {/* Cost Split Pie */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <PieChartIcon className="h-5 w-5" /> توزیع هزینه‌ها
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ChartContainer config={{}} className="h-64">
+                              <RePieChart>
+                                <Pie data={costSplit} dataKey="value" nameKey="name" innerRadius={50} outerRadius={100} paddingAngle={1}>
+                                  {costSplit.map((entry, index) => (
+                                    <Cell key={`cs-${index}`} fill={pieColors[index % pieColors.length]} />
+                                  ))}
+                                </Pie>
+                                <ChartTooltipContent />
+                                <ChartLegendContent payload={costSplit.map((item, idx) => ({ value: item.name, color: pieColors[idx % pieColors.length] }))} />
+                              </RePieChart>
+                            </ChartContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Risk Heatmap */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <AlertOctagon className="h-5 w-5" /> ماتریس ریسک
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-center text-sm">
+                              <thead>
+                                <tr>
+                                  <th className="px-3 py-2 border">حوزه</th>
+                                  <th className="px-3 py-2 border">امتیاز ریسک (۱-۵)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {industriesRisk.map((r, idx) => (
+                                  <tr key={idx}>
+                                    <td className="border px-3 py-2">{r.area}</td>
+                                    <td className="border px-3 py-2">
+                                      <span className={`px-2 py-1 rounded-full text-white ${r.risk <= 2 ? 'bg-green-500' : r.risk <= 4 ? 'bg-yellow-500' : 'bg-red-600'}`}>{toPersianNumber(r.risk)}</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  );
+                })()}
+              </TabsContent>
+
+              <TabsContent value="contract-generation" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileSignature className="h-5 w-5" />
+                      تولید قرارداد
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Company Details for Contract */}
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <h3 className="font-semibold mb-3">اطلاعات شرکت برای قرارداد:</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">نام شرکت:</span>
+                            <span className="mr-2">{company.name}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium">شناسه ملی:</span>
+                            <span className="mr-2">{toPersianNumber(company.nationalId)}</span>
+                          </div>
+                          {company.registrationNumber && (
+                            <div>
+                              <span className="font-medium">شماره ثبت:</span>
+                              <span className="mr-2">{toPersianNumber(company.registrationNumber)}</span>
+                            </div>
+                          )}
+                          {company.address && (
+                            <div>
+                              <span className="font-medium">آدرس:</span>
+                              <span className="mr-2">{company.address}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Contract Generation Actions */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Button 
+                          onClick={() => setLocation(`/employee/flexible-contract-generator?companyId=${company.id}`)}
+                          className="h-20 flex flex-col gap-2"
+                        >
+                          <FileSignature className="h-6 w-6" />
+                          <span>تولید قرارداد هوشمند</span>
+                        </Button>
+                        
+                        <Button 
+                          variant="outline"
+                          onClick={() => setLocation("/employee/contract-templates")}
+                          className="h-20 flex flex-col gap-2"
+                        >
+                          <Upload className="h-6 w-6" />
+                          <span>مدیریت قالب‌ها</span>
+                        </Button>
+                      </div>
+
+                      {/* Instructions */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="font-semibold mb-2">راهنمای تولید قرارداد:</h4>
+                        <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                          <li>ابتدا قالب‌های قرارداد مورد نیاز را در بخش مدیریت قالب‌ها اپلود کنید</li>
+                          <li>سپس در صفحه تولید قرارداد، این شرکت و قالب مورد نظر را انتخاب کنید</li>
+                          <li>اطلاعات اضافی مثل مبلغ و تاریخ را تکمیل کنید</li>
+                          <li>قرارداد نهایی را دانلود کنید</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="ai-analysis" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="h-5 w-5" />
+                      تحلیل هوش مصنوعی
+                    </CardTitle>
+                    <p className="text-muted-foreground">
+                      تحلیل کامل شرکت بر اساس مدارک و اطلاعات موجود (همیشه تازه - بدون کش)
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {(aiFetching || isManuallyRefreshing) ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                        <span className="text-lg font-medium text-blue-700">
+                          {isManuallyRefreshing ? 'در حال تولید تحلیل جدید...' : 'در حال بارگیری تحلیل هوش مصنوعی...'}
+                        </span>
+                        <p className="text-sm text-gray-500 mt-2">این فرآیند ممکن است تا یک دقیقه طول بکشد</p>
+                      </div>
+                    ) : aiError ? (
+                      <div className="text-center py-12 bg-red-50 rounded-lg border border-red-200">
+                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-red-800 mb-2">خطا در دریافت تحلیل</h3>
+                        <p className="text-red-600 mb-6">{(aiError as any).message || 'خطایی در برقراری ارتباط با هوش مصنوعی رخ داد'}</p>
+                        <Button 
+                          onClick={() => refetchAIWithRefresh(false)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          تلاش مجدد
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* دکمه‌های کنترل تحلیل */}
+                        <div className="text-center py-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                          <Brain className="h-16 w-16 text-blue-500 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium mb-2">تحلیل هوش مصنوعی</h3>
+                          
+                          {/* Cache Status */}
+                          {aiAnalysis && (
+                            <div className="mb-4">
+                              {aiAnalysis.fromCache ? (
+                                <div className="flex items-center justify-center gap-2 text-sm text-blue-600 mb-2">
+                                  <CheckCircle className="h-4 w-4" />
+                                  <span>💾 تحلیل ذخیره شده</span>
+                                  {aiAnalysis.cacheTimestamp && (
+                                    <span className="text-gray-500">
+                                      • {new Date(aiAnalysis.cacheTimestamp).toLocaleString('fa-IR')}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2 text-sm text-green-600 mb-2">
+                                  <RefreshCw className="h-4 w-4" />
+                                  <span>🔄 تحلیل جدید</span>
+                                  {aiAnalysis.analysisTimestamp && (
+                                    <span className="text-gray-500">
+                                      • {new Date(aiAnalysis.analysisTimestamp).toLocaleString('fa-IR')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {!aiAnalysis ? (
+                            <div>
+                              <p className="text-muted-foreground mb-4">
+                                برای دریافت تحلیل کامل هوش مصنوعی از این شرکت، دکمه زیر را کلیک کنید
+                              </p>
+                              <Button 
+                                onClick={() => refetchAIWithRefresh(false)} 
+                                disabled={isManuallyRefreshing}
+                                className="mr-2"
+                              >
+                                <Brain className="h-4 w-4 ml-2" />
+                                {isManuallyRefreshing ? 'در حال تحلیل...' : 'شروع تحلیل'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <p className="text-sm text-muted-foreground">
+                                تحلیل آماده است. برای بروزرسانی، دکمه "تحلیل مجدد" را کلیک کنید
+                              </p>
+                              <div className="flex gap-2 justify-center">
+                                <Button 
+                                  onClick={() => refetchAIWithRefresh(true)}
+                                  disabled={isManuallyRefreshing}
+                                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
+                                >
+                                  <RefreshCw className={`h-4 w-4 ml-2 ${isManuallyRefreshing ? 'animate-spin' : ''}`} />
+                                  {isManuallyRefreshing ? 'در حال تولید...' : 'تحلیل مجدد (جدید)'}
+                                </Button>
+                                <Button 
+                                  variant="outline"
+                                  onClick={() => refetchAIWithRefresh(false)}
+                                  disabled={isManuallyRefreshing}
+                                >
+                                  <Eye className="h-4 w-4 ml-2" />
+                                  نمایش مجدد
+                                </Button>
+                              </div>
+                              
+                              {aiAnalysis.fromCache && (
+                                <div className="text-xs text-center text-blue-600 p-2 bg-blue-50 rounded border-l-2 border-blue-200 max-w-md mx-auto">
+                                  <strong>💾 اطلاع:</strong> این تحلیل از حافظه بارگیری شده. برای تحلیل جدید، "تحلیل مجدد" را کلیک کنید
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* نتایج تحلیل - فقط اگر داده موجود باشد */}
+                        {aiAnalysis && (
+                          <>
+                            {/* معرفی شرکت */}
+                            {aiAnalysis.companyOverview && (
+                              <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950">
+                                <CardContent className="p-6">
+                                  <h3 className="text-lg font-bold mb-3">معرفی شرکت</h3>
+                                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    {aiAnalysis.companyOverview}
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* نمره کلی */}
+                            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
+                              <CardContent className="p-6">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h3 className="text-xl font-bold">ارزیابی کلی</h3>
+                                    <p className="text-muted-foreground">
+                                      {aiAnalysis.overallRecommendation.recommendation === 'strongly_recommend' && 'توصیه قوی'}
+                                      {aiAnalysis.overallRecommendation.recommendation === 'recommend' && 'توصیه می‌شود'}
+                                      {aiAnalysis.overallRecommendation.recommendation === 'neutral' && 'خنثی'}
+                                      {aiAnalysis.overallRecommendation.recommendation === 'not_recommend' && 'توصیه نمی‌شود'}
+                                      {aiAnalysis.overallRecommendation.recommendation === 'strongly_not_recommend' && 'قویاً توصیه نمی‌شود'}
+                                    </p>
+                                  </div>
+                                  <div className="text-3xl font-bold text-blue-600">
+                                    {toPersianNumber(aiAnalysis.overallRecommendation.score)}/۱۰
+                                  </div>
+                                </div>
+                                <p className="mt-4 text-sm">
+                                  {aiAnalysis.overallRecommendation.reasoning}
+                                </p>
+                              </CardContent>
+                            </Card>
+
+                            {/* تحلیل‌های تخصصی */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* تحلیل تیم */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <Users className="h-5 w-5" />
+                                    تحلیل تیم
+                                    <div className="mr-auto flex items-center gap-1">
+                                      {aiAnalysis.teamAnalysis.score >= 7 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-600" />
+                                      ) : aiAnalysis.teamAnalysis.score >= 5 ? (
+                                        <Minus className="h-4 w-4 text-yellow-600" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-600" />
+                                      )}
+                                      <span className="font-bold">{toPersianNumber(aiAnalysis.teamAnalysis.score)}/۱۰</span>
+                                    </div>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-sm mb-3">{aiAnalysis.teamAnalysis.summary}</p>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <h5 className="font-medium text-green-600">نقاط قوت:</h5>
+                                      <ul className="text-sm list-disc list-inside text-muted-foreground">
+                                        {aiAnalysis.teamAnalysis.strengths.map((strength: string, i: number) => (
+                                          <li key={i}>{strength}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h5 className="font-medium text-red-600">نقاط ضعف:</h5>
+                                      <ul className="text-sm list-disc list-inside text-muted-foreground">
+                                        {aiAnalysis.teamAnalysis.weaknesses.map((weakness: string, i: number) => (
+                                          <li key={i}>{weakness}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* تحلیل محصول */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <Target className="h-5 w-5" />
+                                    تحلیل محصول
+                                    <div className="mr-auto flex items-center gap-1">
+                                      {aiAnalysis.productAnalysis.score >= 7 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-600" />
+                                      ) : aiAnalysis.productAnalysis.score >= 5 ? (
+                                        <Minus className="h-4 w-4 text-yellow-600" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-600" />
+                                      )}
+                                      <span className="font-bold">{toPersianNumber(aiAnalysis.productAnalysis.score)}/۱۰</span>
+                                    </div>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-sm mb-3">{aiAnalysis.productAnalysis.summary}</p>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <span className="font-medium">پتانسیل بازار: </span>
+                                      <span className="text-sm">{aiAnalysis.productAnalysis.marketPotential}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">مزیت رقابتی: </span>
+                                      <span className="text-sm">{aiAnalysis.productAnalysis.competitiveAdvantage}</span>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* تحلیل بازار */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="h-5 w-5" />
+                                    تحلیل بازار
+                                    <div className="mr-auto flex items-center gap-1">
+                                      {aiAnalysis.marketAnalysis.score >= 7 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-600" />
+                                      ) : aiAnalysis.marketAnalysis.score >= 5 ? (
+                                        <Minus className="h-4 w-4 text-yellow-600" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-600" />
+                                      )}
+                                      <span className="font-bold">{toPersianNumber(aiAnalysis.marketAnalysis.score)}/۱۰</span>
+                                    </div>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-sm mb-3">{aiAnalysis.marketAnalysis.summary}</p>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <span className="font-medium">اندازه بازار: </span>
+                                      <span className="text-sm">{aiAnalysis.marketAnalysis.marketSize}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">وضعیت رقابت: </span>
+                                      <span className="text-sm">{aiAnalysis.marketAnalysis.competition}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">روندهای بازار: </span>
+                                      <span className="text-sm">{aiAnalysis.marketAnalysis.trends}</span>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* تحلیل مالی */}
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <PieChartIcon className="h-5 w-5" />
+                                    تحلیل مالی
+                                    <div className="mr-auto flex items-center gap-1">
+                                      {aiAnalysis.financialAnalysis.score >= 7 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-600" />
+                                      ) : aiAnalysis.financialAnalysis.score >= 5 ? (
+                                        <Minus className="h-4 w-4 text-yellow-600" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-600" />
+                                      )}
+                                      <span className="font-bold">{toPersianNumber(aiAnalysis.financialAnalysis.score)}/۱۰</span>
+                                    </div>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-sm mb-3">{aiAnalysis.financialAnalysis.summary}</p>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <span className="font-medium">ساختار سرمایه: </span>
+                                      <span className="text-sm">{aiAnalysis.financialAnalysis.capitalStructure}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">پتانسیل رشد: </span>
+                                      <span className="text-sm">{aiAnalysis.financialAnalysis.growthPotential}</span>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+
+                            {/* تحلیل فرم‌ها و مدارک */}
+                            {aiAnalysis.formAnalysis && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="flex items-center gap-2">
+                                    <FileText className="h-5 w-5" />
+                                    تحلیل فرم‌ها و مدارک
+                                    <div className="mr-auto flex items-center gap-1">
+                                      {aiAnalysis.formAnalysis.score >= 7 ? (
+                                        <TrendingUp className="h-4 w-4 text-green-600" />
+                                      ) : aiAnalysis.formAnalysis.score >= 5 ? (
+                                        <Minus className="h-4 w-4 text-yellow-600" />
+                                      ) : (
+                                        <TrendingDown className="h-4 w-4 text-red-600" />
+                                      )}
+                                      <span className="font-bold">{toPersianNumber(aiAnalysis.formAnalysis.score)}/۱۰</span>
+                                    </div>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <p className="text-sm mb-4">{aiAnalysis.formAnalysis.summary}</p>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <h5 className="font-medium text-blue-600 mb-2">فرم‌های تکمیل شده:</h5>
+                                      <ul className="text-sm list-disc list-inside text-muted-foreground space-y-1">
+                                        {(aiAnalysis.formAnalysis.completedForms || []).map((form: any, i: number) => (
+                                          <li key={i}>{form}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    
+                                    <div>
+                                      <h5 className="font-medium text-green-600 mb-2">نکات کلیدی:</h5>
+                                      <ul className="text-sm list-disc list-inside text-muted-foreground space-y-1">
+                                        {(aiAnalysis.formAnalysis.keyInsights || []).map((insight: any, i: number) => (
+                                          <li key={i}>{insight}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <h5 className="font-medium text-purple-600 mb-2">کیفیت مدارک:</h5>
+                                      <p className="text-sm bg-purple-50 p-3 rounded border-r-4 border-purple-400">
+                                        {aiAnalysis.formAnalysis.documentsQuality}
+                                      </p>
+                                    </div>
+                                    
+                                    {(aiAnalysis.formAnalysis.missingInfo || []).length > 0 && (
+                                      <div>
+                                        <h5 className="font-medium text-orange-600 mb-2">اطلاعات ناقص:</h5>
+                                        <ul className="text-sm list-disc list-inside text-muted-foreground space-y-1">
+                                          {(aiAnalysis.formAnalysis.missingInfo || []).map((missing: any, i: number) => (
+                                            <li key={i} className="text-orange-700">{missing}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* تحلیل ریسک */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <AlertOctagon className="h-5 w-5" />
+                                  تحلیل ریسک
+                                  <div className="mr-auto flex items-center gap-1">
+                                    {aiAnalysis.riskAnalysis.score >= 7 ? (
+                                      <TrendingUp className="h-4 w-4 text-green-600" />
+                                    ) : aiAnalysis.riskAnalysis.score >= 5 ? (
+                                      <Minus className="h-4 w-4 text-yellow-600" />
+                                    ) : (
+                                      <TrendingDown className="h-4 w-4 text-red-600" />
+                                    )}
+                                    <span className="font-bold">{toPersianNumber(aiAnalysis.riskAnalysis.score)}/۱۰</span>
+                                  </div>
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-sm mb-4">{aiAnalysis.riskAnalysis.summary}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h5 className="font-medium text-red-600 mb-2">ریسک‌های اصلی:</h5>
+                                    <ul className="text-sm list-disc list-inside text-muted-foreground space-y-1">
+                                      {aiAnalysis.riskAnalysis.mainRisks.map((risk: any, i: number) => (
+                                        <li key={i}>{risk}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h5 className="font-medium text-green-600 mb-2">راهکارهای کاهش ریسک:</h5>
+                                    <ul className="text-sm list-disc list-inside text-muted-foreground space-y-1">
+                                      {aiAnalysis.riskAnalysis.mitigationStrategies.map((strategy: any, i: number) => (
+                                        <li key={i}>{strategy}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* گام‌های بعدی */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <CheckCircle className="h-5 w-5" />
+                                  گام‌های بعدی پیشنهادی
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <ul className="space-y-2">
+                                  {aiAnalysis.overallRecommendation.nextSteps.map((step: any, i: number) => (
+                                    <li key={i} className="flex items-start gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold mt-0.5">
+                                        {i + 1}
+                                      </div>
+                                      <span className="text-sm">{step}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </CardContent>
+                            </Card>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </main>
+      </div>
+      
+      {/* Form Content Viewer Modal */}
+      {selectedFormSubmission && (
+        <FormContentViewer
+          isOpen={isFormViewerOpen}
+          onClose={() => {
+            setIsFormViewerOpen(false);
+            setSelectedFormSubmission(null);
+          }}
+          submission={selectedFormSubmission}
+        />
+      )}
+    </div>
+  );
+}
