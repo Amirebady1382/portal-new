@@ -2,9 +2,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import Header from "@/components/layout/header";
-import Sidebar from "@/components/layout/sidebar";
-import MobileSidebar from "@/components/layout/mobile-sidebar";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -155,19 +153,21 @@ export default function AdminCompanyView() {
 
   if (companyLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="loading-spinner h-12 w-12 border-4 mx-auto mb-4"></div>
-          <p>در حال بارگذاری اطلاعات شرکت...</p>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="loading-spinner h-12 w-12 border-4 mx-auto mb-4 animate-spin"></div>
+            <p>در حال بارگذاری اطلاعات شرکت...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center" dir="rtl">
-        <Card className="p-8 text-center">
+      <DashboardLayout>
+        <Card className="p-8 text-center max-w-md mx-auto mt-12">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">شرکت یافت نشد</h2>
           <p className="text-gray-600 mb-4">اطلاعات شرکت مورد نظر در دسترس نیست.</p>
@@ -175,19 +175,13 @@ export default function AdminCompanyView() {
             بازگشت به لیست شرکت‌ها
           </Button>
         </Card>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      <Header />
-      <MobileSidebar />
-      
-      <div className="flex pt-16">
-        <Sidebar />
-        
-        <main className="flex-1 md:mr-72 p-4 md:p-6 fade-in">
+    <DashboardLayout>
+      <div className="space-y-6 text-right" dir="rtl">
           {/* Header Section */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
@@ -564,9 +558,8 @@ export default function AdminCompanyView() {
               </Card>
             </TabsContent>
           </Tabs>
-        </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

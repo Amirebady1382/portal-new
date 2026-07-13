@@ -1075,7 +1075,7 @@ export class DatabaseStorage implements IStorage {
     const values = [];
     
     Object.entries(updateData).forEach(([key, value]) => {
-      if (key === 'id' || key === 'createdAt') return;
+      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') return;
       if (key === 'companyId') { fields.push('company_id = ?'); values.push(value); }
       else if (key === 'uploadedById') { fields.push('uploaded_by_id = ?'); values.push(value); }
       else if (key === 'originalName') { fields.push('original_name = ?'); values.push(value); }
@@ -1515,7 +1515,7 @@ export class DatabaseStorage implements IStorage {
     const values = [];
     
     Object.entries(updates).forEach(([key, value]) => {
-      if (key === 'id' || key === 'createdAt') return;
+      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') return;
       if (key === 'requirementId') { fields.push('requirement_id = ?'); values.push(value); }
       else if (key === 'companyId') { fields.push('company_id = ?'); values.push(value); }
       else if (key === 'userId') { fields.push('user_id = ?'); values.push(value); }
@@ -1830,7 +1830,7 @@ export class DatabaseStorage implements IStorage {
     const values = [];
     
     Object.entries(updates).forEach(([key, value]) => {
-      if (key === 'id' || key === 'createdAt') return;
+      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') return;
       if (key === 'fileName') { fields.push('file_name = ?'); values.push(value); }
       else if (key === 'filePath') { fields.push('file_path = ?'); values.push(value); }
       else if (key === 'fileSize') { fields.push('file_size = ?'); values.push(value); }
@@ -3723,7 +3723,7 @@ export class DatabaseStorage implements IStorage {
        LEFT JOIN companies c ON s.company_id = c.id
        LEFT JOIN ai_chat_messages m ON s.id = m.session_id
        WHERE s.user_id = ?
-       GROUP BY s.id
+       GROUP BY s.id, s.user_id, s.company_id, s.service_id, s.title, s.created_at, s.updated_at, c.name
        ORDER BY s.updated_at DESC`,
       [userId]
     );

@@ -40,7 +40,24 @@ export class AIReportGenerationService {
     // Lazy initialization - will be created when needed
   }
 
-  private getAnthropicClient(): Anthropic {
+  private getAnthropicClient(): any {
+    const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+    if (disableDirect) {
+      return {
+        messages: {
+          create: async (options: any) => {
+            logger.info("🤖 Routing direct Claude call to GapGPT because DISABLE_DIRECT_CLAUDE is active", "ai-report-gen");
+            const prompt = options.messages?.[0]?.content || "";
+            const systemPrompt = options.system || undefined;
+            const content = await gapGPTService.generateResponse(prompt, systemPrompt);
+            return {
+              content: [{ type: "text", text: content }]
+            };
+          }
+        }
+      };
+    }
+
     if (!this.anthropic) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
@@ -218,7 +235,16 @@ export class AIReportGenerationService {
       }
     }
 
-    console.log(`📊 تعداد کل اسناد (شامل فایل‌های فرم): ${documents.length}`);
+    // De-duplicate documents by file path or original name
+    const seenFiles = new Set<string>();
+    documents = documents.filter(doc => {
+      const key = doc.filePath || doc.originalName;
+      if (!key || seenFiles.has(key)) return false;
+      seenFiles.add(key);
+      return true;
+    });
+
+    console.log(`📊 تعداد کل اسناد (پس از حذف تکراری‌ها): ${documents.length}`);
     if (documents.length > 0) {
       dataSources.push('اسناد و مدارک');
     }
@@ -591,7 +617,12 @@ export class AIReportGenerationService {
 
             if (documentContent && documentContent.content) {
               console.log(`   ✅ محتوای سند استخراج شد (${documentContent.content.length} کاراکتر)`);
-              prompt += `\n**محتوای استخراج شده:**\n${documentContent.content}\n`;
+              let contentText = documentContent.content;
+              const maxChars = 10000;
+              if (contentText.length > maxChars) {
+                contentText = contentText.substring(0, maxChars) + `\n... [محتوای سند به دلیل حجم بالا کوتاه شده است - ${contentText.length - maxChars} کاراکتر حذف شد]`;
+              }
+              prompt += `\n**محتوای استخراج شده:**\n${contentText}\n`;
             } else {
               console.log(`   ⚠️ محتوای سند قابل استخراج نیست`);
               prompt += `- محتوا: قابل استخراج نیست\n`;

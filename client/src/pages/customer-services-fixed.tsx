@@ -220,6 +220,21 @@ export default function CustomerServicesFixed() {
       </Badge>
     );
   };
+  const isServiceActive = (serviceId: number) => {
+    return myRequests.some(r => r.serviceId === serviceId && r.status !== 'completed' && r.status !== 'rejected');
+  };
+
+  const handleRequestClick = (service: any) => {
+    if (isServiceActive(service.id)) {
+      toast({
+        title: "خطا",
+        description: "شما در حال حاضر یک درخواست فعال برای این خدمت دارید",
+        variant: "destructive"
+      });
+      return;
+    }
+    setRequestingService(service);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -331,24 +346,6 @@ export default function CustomerServicesFixed() {
                             {service.description}
                           </p>
                         )}
-
-  const isServiceActive = (serviceId: number) => {
-    return myRequests.some(r => r.serviceId === serviceId && r.status !== 'completed' && r.status !== 'rejected');
-  };
-
-  const handleRequestClick = (service: any) => {
-    if (isServiceActive(service.id)) {
-      toast({
-        title: "خطا",
-        description: "شما در حال حاضر یک درخواست فعال برای این خدمت دارید",
-        variant: "destructive"
-      });
-      return;
-    }
-    setRequestingService(service);
-  };
-
-  // ... (inside the services.map)
                         <Button
                           className="w-full"
                           onClick={() => handleRequestClick(service)}

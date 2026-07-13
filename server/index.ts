@@ -34,6 +34,7 @@ setupUncaughtExceptionHandler();
 
 const app = express();
 app.set('etag', false);
+app.set('trust proxy', true);
 
 // Setup security middleware (helmet, rate limiting, etc.)
 setupSecurityMiddleware(app);

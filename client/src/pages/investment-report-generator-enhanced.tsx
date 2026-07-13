@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import Sidebar from "@/components/layout/sidebar";
-import MobileSidebar from "@/components/layout/mobile-sidebar";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -88,6 +86,17 @@ export default function InvestmentReportGeneratorEnhanced() {
     enabled: !!selectedCompanyId
   });
 
+  // Fetch company reports history when a company is selected
+  const { data: reportsResponse, isLoading: reportsLoading, refetch: refetchReports } = useQuery({
+    queryKey: ['/api/investment-reports/company', selectedCompanyId],
+    queryFn: async () => {
+      if (!selectedCompanyId) return { success: true, reports: [] };
+      return await apiRequest<{ success: boolean; reports: any[] }>('GET', `/api/investment-reports/company/${selectedCompanyId}`);
+    },
+    enabled: !!selectedCompanyId
+  });
+  const previousReports = reportsResponse?.reports || [];
+
   // Show error toast if companies fail to load
   useEffect(() => {
     if (companiesError) {
@@ -113,6 +122,7 @@ export default function InvestmentReportGeneratorEnhanced() {
     onSuccess: (data: any) => {
       setGeneratedReport(data.report);
       setShowPreview(true);
+      refetchReports(); // Refresh history
       toast({
         title: "موفق",
         description: "گزارش با موفقیت تولید شد"
@@ -212,15 +222,8 @@ export default function InvestmentReportGeneratorEnhanced() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      <Header />
-      <MobileSidebar />
-      
-      <div className="flex pt-16">
-        <Sidebar />
-        
-        <main className="flex-1 md:mr-72 p-4 md:p-6 fade-in">
-          <div className="space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6 text-right">
             {/* Header */}
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -465,41 +468,163 @@ export default function InvestmentReportGeneratorEnhanced() {
                   )}
                 </div>
 
-                {/* Input Panel */}
+                {/* Input / History Panel */}
                 <div className="lg:col-span-2">
-                  <Card className="h-full">
-                    <CardHeader>
-                      <CardTitle>
-                        {mode === 'freetext' ? 'ورود متن (Prompt)' : 'پیکربندی گزارش'}
-                      </CardTitle>
-                      <CardDescription>
-                        {mode === 'freetext' 
-                          ? 'متن مورد نظر خود را وارد کنید. AI این متن را با اطلاعات شرکت کامل خواهد کرد.' 
-                          : 'گزارش بر اساس قالب انتخابی تولید خواهد شد.'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {mode === 'freetext' ? (
-                        <Textarea
-                          placeholder="مثال: گزارش ارزیابی جامع برای شرکت را تهیه کنید. گزارش باید شامل تحلیل تیم، محصول، بازار و ریسک‌ها باشد..."
-                          value={customText}
-                          onChange={(e) => setCustomText(e.target.value)}
-                          rows={20}
-                          className="font-mono"
-                        />
-                      ) : (
-                        <div className="space-y-4">
-                          <Alert>
-                            <FileText className="h-4 w-4" />
-                            <AlertTitle>تولید با قالب</AlertTitle>
-                            <AlertDescription>
-                              گزارش بر اساس قالب انتخابی و با استفاده از اطلاعات موجود شرکت تولید می‌شود.
-                            </AlertDescription>
-                          </Alert>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <Tabs defaultValue="editor" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsTrigger value="editor">تنظیمات و محتوای گزارش</TabsTrigger>
+                      <TabsTrigger value="history">
+                        سوابق گزارش‌های تولید شده ({selectedCompanyId ? previousReports.length : 0})
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="editor">
+                      <Card className="h-full">
+                        <CardHeader>
+                          <CardTitle>
+                            {mode === 'freetext' ? 'ورود متن (Prompt)' : 'پیکربندی گزارش'}
+                          </CardTitle>
+                          <CardDescription>
+                            {mode === 'freetext' 
+                              ? 'متن مورد نظر خود را وارد کنید. AI این متن را با اطلاعات شرکت کامل خواهد کرد.' 
+                              : 'گزارش بر اساس قالب انتخابی تولید خواهد شد.'}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {mode === 'freetext' ? (
+                            <Textarea
+                              placeholder="مثال: گزارش ارزیابی جامع برای شرکت را تهیه کنید. گزارش باید شامل تحلیل تیم، محصول، بازار و ریسک‌ها باشد..."
+                              value={customText}
+                              onChange={(e) => setCustomText(e.target.value)}
+                              rows={20}
+                              className="font-mono text-right"
+                              dir="rtl"
+                            />
+                          ) : (
+                            <div className="space-y-4">
+                              <Alert>
+                                <FileText className="h-4 w-4" />
+                                <AlertTitle>تولید با قالب</AlertTitle>
+                                <AlertDescription>
+                                  گزارش بر اساس قالب انتخابی و با استفاده از اطلاعات موجود شرکت تولید می‌شود.
+                                </AlertDescription>
+                              </Alert>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="history">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>تاریخچه گزارش‌های ارزیابی</CardTitle>
+                          <CardDescription>
+                            لیست تمام گزارش‌های ارزیابی تولید شده برای این شرکت
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {!selectedCompanyId ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <Building className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                              <p>لطفاً ابتدا یک شرکت را از پنل سمت راست انتخاب کنید تا تاریخچه گزارش‌های آن را مشاهده کنید.</p>
+                            </div>
+                          ) : reportsLoading ? (
+                            <div className="text-center py-8">
+                              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
+                              <p>در حال بارگذاری تاریخچه...</p>
+                            </div>
+                          ) : previousReports.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <FileText className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                              <p>هیچ گزارشی تا کنون برای این شرکت ثبت نشده است.</p>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm text-right text-gray-500">
+                                <thead className="text-xs text-gray-700 bg-gray-50">
+                                  <tr>
+                                    <th scope="col" className="px-4 py-3">شماره گزارش</th>
+                                    <th scope="col" className="px-4 py-3">نوع گزارش</th>
+                                    <th scope="col" className="px-4 py-3">تاریخ تولید</th>
+                                    <th scope="col" className="px-4 py-3">حجم فایل</th>
+                                    <th scope="col" className="px-4 py-3 text-center">عملیات</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {previousReports.map((report: any) => {
+                                    const isAI = report.reportType === 'ai_freetext';
+                                    return (
+                                      <tr key={report.id} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium text-gray-900 font-mono">
+                                          {report.reportNumber}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <Badge variant={isAI ? "secondary" : "outline"}>
+                                            {isAI ? "متن آزاد AI" : "قالب قرارداد/ارزیابی"}
+                                          </Badge>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          {new Date(report.generatedAt).toLocaleDateString('fa-IR')}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono">
+                                          {report.fileSize ? `${Math.round(report.fileSize / 1024)} KB` : '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-center flex justify-center gap-2">
+                                          {isAI && report.reportData && (
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => {
+                                                try {
+                                                  const data = JSON.parse(report.reportData);
+                                                  setGeneratedReport({
+                                                    content: data.html || '',
+                                                    metadata: data.metadata || {
+                                                      companyName: companies.find((c: any) => c.id === selectedCompanyId)?.name || 'نامشخص',
+                                                      generatedAt: report.generatedAt,
+                                                      model: 'GapGPT',
+                                                      tokensUsed: 0,
+                                                      processingTime: 0,
+                                                      dataSources: ['تاریخچه دیتابیس']
+                                                    }
+                                                  });
+                                                  setShowPreview(true);
+                                                } catch (e) {
+                                                  toast({
+                                                    title: "خطا در بارگذاری",
+                                                    description: "قالب داده گزارش خوانا نیست.",
+                                                    variant: "destructive"
+                                                  });
+                                                }
+                                              }}
+                                            >
+                                              <Eye className="h-4 w-4 ml-1" />
+                                              نمایش
+                                            </Button>
+                                          )}
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
+                                          >
+                                            <a href={`/api/investment-reports/download/${report.fileName}`} download>
+                                              <Download className="h-4 w-4 ml-1" />
+                                              دانلود
+                                            </a>
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </div>
             ) : (
@@ -549,7 +674,8 @@ export default function InvestmentReportGeneratorEnhanced() {
 
                     {/* HTML Preview */}
                     <div 
-                      className="prose prose-sm max-w-none bg-white p-8 rounded-lg border"
+                      className="prose prose-sm max-w-none bg-white p-8 rounded-lg border text-right"
+                      dir="rtl"
                       dangerouslySetInnerHTML={{ __html: generatedReport?.content || '' }}
                     />
                   </CardContent>
@@ -557,9 +683,7 @@ export default function InvestmentReportGeneratorEnhanced() {
               </div>
             )}
           </div>
-        </main>
-      </div>
-    </div>
+        </DashboardLayout>
   );
 }
 

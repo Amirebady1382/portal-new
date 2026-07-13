@@ -137,7 +137,7 @@ export class ServicesService {
           serviceData.icon || null,
           serviceData.estimatedDays || null,
           serviceData.requirements || null,
-          serviceData.isActive ? true : false,
+          serviceData.isActive !== false,
           serviceData.sortOrder || 0,
           serviceData.createdBy,
           now,
@@ -240,14 +240,14 @@ export class ServicesService {
    */
   async deleteService(id: number): Promise<boolean> {
     try {
-      // Check if service has active requests
+      // Check if service has any historical or active requests
       const activeRequests = await db.execute(
-        `SELECT COUNT(*) as count FROM service_requests WHERE service_id = ? AND status IN ('pending', 'in_review')`,
+        `SELECT COUNT(*) as count FROM service_requests WHERE service_id = ?`,
         [id]
       );
 
       if ((activeRequests.rows[0] as any).count > 0) {
-        throw new Error("نمی‌توان خدمتی را حذف کرد که دارای درخواست فعال است");
+        throw new Error("نمی‌توان خدمتی را حذف کرد که دارای سوابق درخواست است. لطفاً خدمت را غیرفعال کنید.");
       }
 
       await db.execute(`DELETE FROM services WHERE id = ?`, [id]);

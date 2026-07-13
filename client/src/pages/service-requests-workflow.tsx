@@ -93,9 +93,12 @@ export default function ServiceRequestsWorkflow() {
       });
     },
     onError: (error: any) => {
+      // Build a descriptive message including any details from the server
+      const baseMsg = error.message || "خطا در ارجاع درخواست";
+      const detailsMsg = error.details ? `\n${typeof error.details === 'string' ? error.details : JSON.stringify(error.details)}` : "";
       toast({
-        title: "خطا",
-        description: error.message || "خطا در ارجاع درخواست",
+        title: "خطا در ارجاع درخواست",
+        description: `${baseMsg}${detailsMsg}`,
         variant: "destructive",
       });
     },
@@ -118,9 +121,12 @@ export default function ServiceRequestsWorkflow() {
       });
     },
     onError: (error: any) => {
+      // Build a descriptive message including any details from the server
+      const baseMsg = error.message || "خطا در تکمیل درخواست";
+      const detailsMsg = error.details ? `\n${typeof error.details === 'string' ? error.details : JSON.stringify(error.details)}` : "";
       toast({
-        title: "خطا",
-        description: error.message || "خطا در تکمیل درخواست",
+        title: "خطا در تکمیل نهایی",
+        description: `${baseMsg}${detailsMsg}`,
         variant: "destructive",
       });
     },
@@ -154,15 +160,23 @@ export default function ServiceRequestsWorkflow() {
     }
   };
 
-  // Group requests by workflow stage
+  // Group requests by workflow stage reliably without duplicates
   const requestsByStage = {
-    investment: requests.filter((r: any) => 
-      r.workflowStage === "investment_forms_pending" || r.workflowStage === "investment_review"
+    completed: requests.filter((r: any) => 
+      r.workflowStage === "completed" || r.status === "completed"
     ),
-    administrative: requests.filter((r: any) => 
-      r.workflowStage === "administrative_forms_pending" || r.workflowStage === "administrative_review"
-    ),
-    completed: requests.filter((r: any) => r.workflowStage === "completed" || r.status === "completed")
+    investment: requests.filter((r: any) => {
+      if (r.workflowStage === "completed" || r.status === "completed") return false;
+      if (r.workflowStage === "investment_forms_pending" || r.workflowStage === "investment_review") return true;
+      if (!r.workflowStage && r.serviceDepartment !== "administrative") return true;
+      return false;
+    }),
+    administrative: requests.filter((r: any) => {
+      if (r.workflowStage === "completed" || r.status === "completed") return false;
+      if (r.workflowStage === "administrative_forms_pending" || r.workflowStage === "administrative_review") return true;
+      if (!r.workflowStage && r.serviceDepartment === "administrative") return true;
+      return false;
+    })
   };
 
   if (isLoading) {

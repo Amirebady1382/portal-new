@@ -23,6 +23,14 @@ export class WorkflowService {
         return existing;
       }
 
+      // Determine initial stage based on service department
+      const serviceRes = await db.execute(
+        `SELECT s.department FROM service_requests sr JOIN services s ON sr.service_id = s.id WHERE sr.id = ?`,
+        [serviceRequestId]
+      );
+      const serviceDepartment = serviceRes.rows[0] ? (serviceRes.rows[0] as any).department : 'investment';
+      const initialStage = serviceDepartment === 'administrative' ? 'administrative_forms_pending' : 'investment_forms_pending';
+
       await db.execute(
         `INSERT INTO service_request_workflow (
           service_request_id, 
@@ -30,7 +38,7 @@ export class WorkflowService {
           created_at, 
           updated_at
         ) VALUES (?, ?, ?, ?)`,
-        [serviceRequestId, "investment_forms_pending", now, now]
+        [serviceRequestId, initialStage, now, now]
       );
       
       // Fetch the created workflow
@@ -79,6 +87,22 @@ export class WorkflowService {
    */
   async markInvestmentFormsCompleted(serviceRequestId: number): Promise<ServiceRequestWorkflow> {
     try {
+      // Pre-validate the current stage to give descriptive feedback
+      const currentWorkflow = await this.getWorkflowByRequestId(serviceRequestId);
+      if (!currentWorkflow) {
+        throw new Error("گردش‌کار برای این درخواست یافت نشد. ابتدا درخواست را ایجاد کنید.");
+      }
+      if (currentWorkflow.currentStage !== 'investment_forms_pending') {
+        const stageLabels: Record<string, string> = {
+          investment_review: 'در حال بررسی توسط واحد سرمایه‌گذاری',
+          administrative_forms_pending: 'در انتظار تکمیل فرم‌های اداری',
+          administrative_review: 'در حال بررسی توسط واحد اداری',
+          completed: 'تکمیل شده'
+        };
+        const label = stageLabels[currentWorkflow.currentStage] || currentWorkflow.currentStage;
+        throw new Error(`وضعیت فعلی درخواست (${label}) اجازه ارسال فرم‌های سرمایه‌گذاری را نمی‌دهد.`);
+      }
+
       // Validate all required forms are submitted
       await this.validateFormsCompletion(serviceRequestId, 'investment');
 
@@ -89,6 +113,12 @@ export class WorkflowService {
         SET current_stage = 'investment_review',
             updated_at = ?
         WHERE service_request_id = ?`,
+        [now, serviceRequestId]
+      );
+
+      // Sync master service request status to 'in_review'
+      await db.execute(
+        `UPDATE service_requests SET status = 'in_review', updated_at = ? WHERE id = ? AND status = 'pending'`,
         [now, serviceRequestId]
       );
       
@@ -125,11 +155,21 @@ export class WorkflowService {
       // Check current stage
       const workflow = await this.getWorkflowByRequestId(serviceRequestId);
       if (!workflow) {
-        throw new Error("Workflow not found");
+        throw new Error("گردش‌کار برای این درخواست یافت نشد.");
       }
       
       if (workflow.currentStage !== "investment_review") {
-        throw new Error(`Cannot transfer from stage: ${workflow.currentStage}`);
+        const stageLabels: Record<string, string> = {
+          investment_forms_pending: 'در انتظار تکمیل فرم‌های سرمایه‌گذاری توسط مشتری',
+          administrative_forms_pending: 'در انتظار تکمیل فرم‌های اداری',
+          administrative_review: 'در حال بررسی توسط واحد اداری',
+          completed: 'تکمیل شده — قابل ارجاع مجدد نیست'
+        };
+        const currentLabel = stageLabels[workflow.currentStage] || workflow.currentStage;
+        throw new Error(
+          `ارجاع به واحد اداری امکان‌پذیر نیست. وضعیت فعلی: ${currentLabel}. ` +
+          `درخواست باید ابتدا در مرحله «بررسی سرمایه‌گذاری» باشد.`
+        );
       }
       
       await db.execute(
@@ -141,6 +181,12 @@ export class WorkflowService {
             updated_at = ?
         WHERE service_request_id = ?`,
         [employeeId, now, notes || null, now, serviceRequestId]
+      );
+
+      // Sync master service request status to 'in_review'
+      await db.execute(
+        `UPDATE service_requests SET status = 'in_review', updated_at = ? WHERE id = ?`,
+        [now, serviceRequestId]
       );
       
       // Fetch the updated workflow
@@ -166,6 +212,22 @@ export class WorkflowService {
    */
   async markAdministrativeFormsCompleted(serviceRequestId: number): Promise<ServiceRequestWorkflow> {
     try {
+      // Pre-validate the current stage
+      const currentWorkflow = await this.getWorkflowByRequestId(serviceRequestId);
+      if (!currentWorkflow) {
+        throw new Error("گردش‌کار برای این درخواست یافت نشد.");
+      }
+      if (currentWorkflow.currentStage !== 'administrative_forms_pending') {
+        const stageLabels: Record<string, string> = {
+          investment_forms_pending: 'در انتظار تکمیل فرم‌های سرمایه‌گذاری',
+          investment_review: 'در حال بررسی توسط واحد سرمایه‌گذاری',
+          administrative_review: 'در حال بررسی توسط واحد اداری',
+          completed: 'تکمیل شده'
+        };
+        const label = stageLabels[currentWorkflow.currentStage] || currentWorkflow.currentStage;
+        throw new Error(`وضعیت فعلی درخواست (${label}) اجازه ارسال فرم‌های اداری را نمی‌دهد.`);
+      }
+
       // Validate all required forms are submitted
       await this.validateFormsCompletion(serviceRequestId, 'administrative');
 
@@ -176,6 +238,12 @@ export class WorkflowService {
         SET current_stage = 'administrative_review',
             updated_at = ?
         WHERE service_request_id = ?`,
+        [now, serviceRequestId]
+      );
+
+      // Sync master service request status to 'in_review'
+      await db.execute(
+        `UPDATE service_requests SET status = 'in_review', updated_at = ? WHERE id = ? AND status = 'pending'`,
         [now, serviceRequestId]
       );
       
@@ -212,11 +280,21 @@ export class WorkflowService {
       // Check current stage
       const workflow = await this.getWorkflowByRequestId(serviceRequestId);
       if (!workflow) {
-        throw new Error("Workflow not found");
+        throw new Error("گردش‌کار برای این درخواست یافت نشد.");
       }
       
       if (workflow.currentStage !== "administrative_review") {
-        throw new Error(`Cannot complete from stage: ${workflow.currentStage}`);
+        const stageLabels: Record<string, string> = {
+          investment_forms_pending: 'در انتظار تکمیل فرم‌های سرمایه‌گذاری توسط مشتری',
+          investment_review: 'در حال بررسی توسط واحد سرمایه‌گذاری',
+          administrative_forms_pending: 'در انتظار تکمیل فرم‌های اداری توسط مشتری',
+          completed: 'قبلاً تکمیل شده است'
+        };
+        const currentLabel = stageLabels[workflow.currentStage] || workflow.currentStage;
+        throw new Error(
+          `تکمیل نهایی امکان‌پذیر نیست. وضعیت فعلی: ${currentLabel}. ` +
+          `درخواست باید ابتدا در مرحله «بررسی اداری» باشد.`
+        );
       }
       
       await db.execute(
@@ -360,49 +438,52 @@ export class WorkflowService {
     );
 
     if (requestResult.rows.length === 0) {
-      throw new Error("Service request not found");
+      throw new Error("درخواست خدمت یافت نشد. ممکن است حذف شده باشد.");
     }
 
     const request = requestResult.rows[0] as any;
 
     // 2. Get required forms for this service and department
+    // Use parameterized boolean to avoid PG boolean coercion issues
     const requirementsResult = await db.execute(
       `SELECT dr.id, dr.title
        FROM service_document_requirements sdr
        JOIN document_requirements dr ON sdr.document_requirement_id = dr.id
-       WHERE sdr.service_id = ? AND sdr.department = ? AND sdr.is_required = true`,
-      [request.service_id, department]
+       WHERE sdr.service_id = ? AND sdr.department = ? AND sdr.is_required = ?`,
+      [request.service_id, department, true]
     );
 
     const requiredForms = requirementsResult.rows as any[];
 
     if (requiredForms.length === 0) {
-      return; // No required forms
+      // No required forms defined for this service/department combination — allow progression
+      console.log(`ℹ️ No required forms for service ${request.service_id} in department '${department}'. Allowing progression.`);
+      return;
     }
 
-    // 3. Get valid submissions for these requirements for this company
-    // Using simple iteration to avoid complex IN clauses if array is empty (though checked above)
-    // We check for status != 'draft' (assuming draft status will be implemented)
-    // If 'draft' is not yet in DB, this query will still work as it just checks for existence
-
+    // 3. Get valid (non-draft) submissions for these requirements for this company
     const requiredIds = requiredForms.map(r => r.id);
     const placeholders = requiredIds.map(() => '?').join(',');
 
     const submissionsResult = await db.execute(
-      `SELECT requirement_id
+      `SELECT DISTINCT requirement_id
        FROM form_submissions
        WHERE company_id = ?
        AND requirement_id IN (${placeholders})
-       AND status != 'draft'`,
+       AND (status IS NULL OR (status != 'draft' AND status != 'rejected'))`,
        [request.company_id, ...requiredIds]
     );
 
-    const submittedRequirementIds = new Set(submissionsResult.rows.map((r: any) => r.requirement_id));
-    const missingForms = requiredForms.filter(req => !submittedRequirementIds.has(req.id));
+    const submittedRequirementIds = new Set(
+      submissionsResult.rows.map((r: any) => Number(r.requirement_id))
+    );
+    const missingForms = requiredForms.filter(req => !submittedRequirementIds.has(Number(req.id)));
 
     if (missingForms.length > 0) {
       const missingTitles = missingForms.map(f => f.title).join('، ');
-      throw new Error(`لطفاً ابتدا فرم‌های زیر را تکمیل و نهایی کنید: ${missingTitles}`);
+      throw new Error(
+        `برای ادامه فرآیند، ابتدا فرم‌های زیر را تکمیل و نهایی (ارسال) کنید:\n${missingTitles}`
+      );
     }
   }
 

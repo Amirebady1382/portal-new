@@ -28,6 +28,7 @@ export class GapGPTService {
     /**
      * تولید متن با استفاده از مدل GapGPT (Claude 4.6)
      * با مکانیزم تلاش مجدد (Retry) در صورت بروز خطا
+     * و در نهایت Failover به Google Gemini در صورت شکست کامل
      */
     async generateResponse(input: string, systemContext?: string, retries = 3): Promise<string> {
         const startTime = Date.now();
@@ -72,7 +73,78 @@ export class GapGPTService {
             }
         }
 
-        logger.error('❌ GapGPT failed after all retries:', 'gap-gpt', lastError);
+        logger.error('❌ GapGPT failed after all retries. Attempting fallback to Gemini...', 'gap-gpt', lastError);
+        
+        try {
+            return await this.generateGeminiResponse(input, systemContext);
+        } catch (geminiError) {
+            logger.error('❌ Google Gemini fallback also failed:', 'gap-gpt', geminiError);
+            throw new Error(`AI Service Failure: GapGPT failed (${lastError.message || lastError}) and Gemini fallback failed (${geminiError.message || geminiError})`);
+        }
+    }
+
+    /**
+     * تولید متن با استفاده از Google Gemini (مدل‌های 3.5 یا 2.5) به عنوان پشتیبان
+     */
+    private async generateGeminiResponse(input: string, systemContext?: string): Promise<string> {
+        const apiKey = process.env.GOOGLE_AI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GOOGLE_AI_API_KEY is not configured in .env");
+        }
+
+        const models = ["gemini-3.5-flash", "gemini-2.5-flash"];
+        let lastError: any;
+
+        for (const model of models) {
+            try {
+                logger.info(`🟢 [Gemini Fallback] Calling Google Gemini (${model})...`, "gap-gpt");
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    {
+                                        text: input
+                                    }
+                                ]
+                            }
+                        ],
+                        ...(systemContext ? {
+                            systemInstruction: {
+                                parts: [
+                                    {
+                                        text: systemContext
+                                    }
+                                ]
+                            }
+                        } : {})
+                    })
+                });
+
+                if (!response.ok) {
+                    const errBody = await response.text();
+                    throw new Error(`Gemini API (${model}) returned status ${response.status}: ${errBody}`);
+                }
+
+                const data = await response.json() as any;
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) {
+                    throw new Error(`Invalid or empty response from Gemini API (${model})`);
+                }
+
+                logger.info(`✅ [Gemini Fallback] Success using ${model}`, "gap-gpt");
+                return text;
+            } catch (error) {
+                lastError = error;
+                logger.warn(`⚠️ [Gemini Fallback] Model ${model} failed`, "gap-gpt", { error: String(error) });
+            }
+        }
         throw lastError;
     }
 

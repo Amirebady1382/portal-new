@@ -171,15 +171,3 @@ export default function EnhancedVariablesTestPage() {
   );
 }
 
-ت، ابتدا یک قالب قرارداد را انتخاب کنید</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
-

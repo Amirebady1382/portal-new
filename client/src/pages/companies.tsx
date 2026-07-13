@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import Sidebar from "@/components/layout/sidebar";
-import MobileSidebar from "@/components/layout/mobile-sidebar";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,20 +122,14 @@ export default function Companies() {
   };
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
-      <Header />
-      <MobileSidebar />
-      
-      <div className="flex pt-16">
-        <Sidebar />
-        
-        <motion.main
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex-1 md:mr-72 p-4 md:p-8"
-        >
-          <div className="mb-8">
+    <DashboardLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6 text-right"
+      >
+        <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">
               لیست شرکت‌ها
             </h1>
@@ -159,7 +151,8 @@ export default function Companies() {
                     placeholder="جستجوی نام یا کد ملی..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-10"
+                    className="pr-10 text-right"
+                    dir="rtl"
                   />
                 </div>
                 
@@ -405,9 +398,8 @@ export default function Companies() {
               </div>
             </CardContent>
           </Card>
-        </motion.main>
-      </div>
-    </div>
-  );
-}
+        </motion.div>
+      </DashboardLayout>
+    );
+  }
 

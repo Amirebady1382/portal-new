@@ -77,7 +77,7 @@ export function setupSecurityMiddleware(app: Express): void {
   // Configure CORS for production
   const envAllowed = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
   const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://portal.gilanfund.ir', 'https://www.portal.gilanfund.ir', 'http://localhost:5000', 'http://127.0.0.1:5000', process.env.CLIENT_URL, ...envAllowed].filter(Boolean)
+    ? ['https://portal.gilanfund.ir', 'https://www.portal.gilanfund.ir', 'http://localhost:5000', 'http://127.0.0.1:5000', 'http://185.214.101.247', 'https://185.214.101.247', process.env.CLIENT_URL, ...envAllowed].filter(Boolean)
     : ['http://localhost:5000', 'http://localhost:3000', 'http://127.0.0.1:5000', '*'];
 
   app.use(cors({
@@ -101,9 +101,11 @@ export function setupSecurityMiddleware(app: Express): void {
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Required for Vite dev mode
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
           connectSrc: ["'self'", 'ws:', 'wss:'], // For Socket.io
+          upgradeInsecureRequests: null, // Prevent forcing HTTPS upgrades on HTTP deployment
         },
       },
       crossOriginEmbedderPolicy: false, // Required for some assets
+      hsts: false, // Disable HSTS to prevent forcing HTTPS on IP-only deployment
     })
   );
 

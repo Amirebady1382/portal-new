@@ -310,18 +310,36 @@ export class HealthService {
           };
         }
 
-        // Check Claude
+        // Check Claude (direct API — may be network-blocked on some servers; GapGPT is the designed fallback)
         try {
-          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
-          const start = Date.now();
-          await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 1,
-            messages: [{ role: 'user', content: 'ping' }]
-          }, { timeout: 5000 });
-          services.claude = { isOnline: true, responseTime: Date.now() - start };
+          const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+          if (disableDirect) {
+            // Test Claude via GapGPT
+            const start = Date.now();
+            await gapGPTService.generateResponse('ping');
+            services.claude = { isOnline: true, responseTime: Date.now() - start, model: 'claude-sonnet-4-6 (via GapGPT)' };
+          } else {
+            const apiKey = process.env.ANTHROPIC_API_KEY || '';
+            if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+            const anthropic = new Anthropic({ apiKey });
+            const start = Date.now();
+            const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+            await anthropic.messages.create({
+              model,
+              max_tokens: 10,
+              messages: [{ role: 'user', content: 'ping' }]
+            }, { timeout: 5000 });
+            services.claude = { isOnline: true, responseTime: Date.now() - start, model };
+          }
         } catch (error) {
-          services.claude = { isOnline: false, error: error instanceof Error ? error.message : 'Claude error' };
+          const msg = error instanceof Error ? error.message : 'Claude error';
+          // Network-level failures (server can't reach api.anthropic.com) are not config issues
+          const isNetworkBlock = msg.includes('Premature close') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('fetch failed');
+          services.claude = {
+            isOnline: false,
+            networkBlocked: isNetworkBlock,
+            error: isNetworkBlock ? 'Network blocked (GapGPT fallback active)' : msg
+          };
         }
 
         // Check GapGPT
@@ -333,10 +351,10 @@ export class HealthService {
           services.gapGpt = { isOnline: false, error: error instanceof Error ? error.message : 'GapGPT error' };
         }
 
-        // Check Perplexity
+        // Check Perplexity (sonar-deep-research requires min 16 tokens)
         try {
           const start = Date.now();
-          await perplexityResearchService.research('ping', { maxTokens: 1 });
+          await perplexityResearchService.research('ping', { maxTokens: 50 });
           services.perplexity = { isOnline: true, responseTime: Date.now() - start };
         } catch (error) {
           services.perplexity = { isOnline: false, error: error instanceof Error ? error.message : 'Perplexity error' };

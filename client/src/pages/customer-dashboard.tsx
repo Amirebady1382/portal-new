@@ -85,7 +85,7 @@ export default function CustomerDashboard() {
 
           {/* Action Required Section */}
           {hasActionRequired && (
-             <div className="grid gap-4">
+             <div className="grid gap-4 mb-4">
                 {isProfileIncomplete && (
                     <ActionCard
                         title="تکمیل پروفایل شرکت"
@@ -107,6 +107,20 @@ export default function CustomerDashboard() {
                     />
                 )}
              </div>
+          )}
+
+          {/* Edit Tax Declaration option when it exists */}
+          {!isTaxDeclarationMissing && (
+              <div className="mb-4">
+                  <ActionCard
+                      title="مدیریت و تغییر اظهارنامه مالیاتی"
+                      description="شما اظهارنامه مالیاتی یا گزارش حسابرسی خود را بارگذاری کرده‌اید. در صورت نیاز می‌توانید آن را تغییر دهید."
+                      buttonText="تغییر اظهارنامه"
+                      onClick={() => setLocation("/customer/tax-declaration")}
+                      variant="info"
+                      icon={FileText}
+                  />
+              </div>
           )}
 
           {/* Company Status Cards */}

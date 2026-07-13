@@ -999,7 +999,7 @@ export class InvestmentReportsService {
     const sanitizedFileName = path.basename(fileName);
     
     // بررسی الگوی نام فایل (باید با الگوی استاندارد ما مطابقت داشته باشد)
-    if (!/^investment_report_[A-Z]{3}-\d{8}-\d+-\d+\.docx$/.test(sanitizedFileName)) {
+    if (!/^investment_report_[a-zA-Z0-9_-]+\.(docx|html)$/.test(sanitizedFileName)) {
       logger.warn(`Invalid report filename format: ${sanitizedFileName}`, 'investment-reports');
       throw new Error('نام فایل نامعتبر است');
     }

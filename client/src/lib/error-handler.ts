@@ -29,6 +29,13 @@ class ErrorHandler {
       return error;
     }
 
+    // Handle plain objects from throwIfResNotOk: { message, status, details, ... }
+    // This is the most common case from our apiRequest() fetch wrapper.
+    if (error && typeof error === 'object' && !(error instanceof Error) && !error.response && !error.request) {
+      const message = error.message || this.getStatusMessage(error.status || 0) || 'خطای غیرمنتظره رخ داده است';
+      return new StandardError(message, error.status, error.code, error.details);
+    }
+
     // اگر خطای آکسیوس است
     if (error?.response) {
       const status = error.response.status;
@@ -44,7 +51,7 @@ class ErrorHandler {
         message = this.getStatusMessage(status);
       }
 
-      return new StandardError(message, status, data?.code, data);
+      return new StandardError(message, status, data?.code, data?.details || data);
     }
 
     // اگر خطای شبکه است

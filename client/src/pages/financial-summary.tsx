@@ -131,8 +131,14 @@ export default function FinancialSummary() {
   const riskIndicators = data.riskIndicators;
   const supplementary = data.supplementary;
 
+  const safeToFixed = (val: any, digits: number = 2): string => {
+    if (val === null || val === undefined || isNaN(Number(val))) return '-';
+    return Number(val).toFixed(digits);
+  };
+
   // Helper functions
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | null | undefined) => {
+    if (num === null || num === undefined) return '-';
     if (num === 0) return '0';
     if (Math.abs(num) >= 1_000_000_000) {
       return `${toPersianNumber((num / 1_000_000_000).toFixed(1))} میلیارد`;
@@ -268,7 +274,7 @@ export default function FinancialSummary() {
                         <div className={`flex items-center text-sm ${getChangeColor(change)}`}>
                           {getChangeIcon(change)}
                           <span className="mr-1 number-font">
-                            {change > 0 && '+'}{toPersianNumber(change.toFixed(1))}%
+                            {change > 0 && '+'}{toPersianNumber(safeToFixed(change, 1))}%
                           </span>
                           <span className="text-gray-400 text-xs mr-2">
                             ({formatNumber(item.year1)})
@@ -323,13 +329,13 @@ export default function FinancialSummary() {
                             <tr key={key} className="border-b hover:bg-gray-50">
                               <td className="py-3 px-4 font-medium">{label}</td>
                               <td className="py-3 px-4 text-center">
-                                <span className="number-font">{toPersianNumber(ratio.year1.toFixed(2))}{suffix}</span>
+                                <span className="number-font">{toPersianNumber(safeToFixed(ratio.year1, 2))}{suffix}</span>
                               </td>
                               <td className="py-3 px-4 text-center">
-                                <span className="number-font font-semibold">{toPersianNumber(ratio.year2.toFixed(2))}{suffix}</span>
+                                <span className="number-font font-semibold">{toPersianNumber(safeToFixed(ratio.year2, 2))}{suffix}</span>
                               </td>
                               <td className={`py-3 px-4 text-center ${getChangeColor(change)}`}>
-                                <span className="number-font">{change > 0 && '+'}{toPersianNumber(change.toFixed(2))}{suffix}</span>
+                                <span className="number-font">{change > 0 && '+'}{toPersianNumber(safeToFixed(change, 2))}{suffix}</span>
                               </td>
                             </tr>
                           );
@@ -341,7 +347,7 @@ export default function FinancialSummary() {
                         <td className="py-3 px-4 text-center">-</td>
                         <td className="py-3 px-4 text-center">-</td>
                         <td className={`py-3 px-4 text-center ${getChangeColor(keyRatios.revenueGrowth)}`}>
-                          <span className="number-font">{keyRatios.revenueGrowth > 0 && '+'}{toPersianNumber(keyRatios.revenueGrowth.toFixed(2))}%</span>
+                          <span className="number-font">{keyRatios.revenueGrowth > 0 && '+'}{toPersianNumber(safeToFixed(keyRatios.revenueGrowth, 2))}%</span>
                         </td>
                       </tr>
                       <tr className="hover:bg-gray-50 font-semibold bg-blue-50">
@@ -349,7 +355,7 @@ export default function FinancialSummary() {
                         <td className="py-3 px-4 text-center">-</td>
                         <td className="py-3 px-4 text-center">-</td>
                         <td className={`py-3 px-4 text-center ${getChangeColor(keyRatios.netProfitGrowth)}`}>
-                          <span className="number-font">{keyRatios.netProfitGrowth > 0 && '+'}{toPersianNumber(keyRatios.netProfitGrowth.toFixed(2))}%</span>
+                          <span className="number-font">{keyRatios.netProfitGrowth > 0 && '+'}{toPersianNumber(safeToFixed(keyRatios.netProfitGrowth, 2))}%</span>
                         </td>
                       </tr>
                     </tbody>
@@ -368,7 +374,7 @@ export default function FinancialSummary() {
                   <h3 className="text-sm font-medium text-gray-600 mb-3">امتیاز آلتمن (Z-Score)</h3>
                   <div className="space-y-2">
                     <div className={`text-3xl font-bold number-font p-3 rounded-lg ${getRiskColor(riskIndicators.altmanZScore.year2)}`}>
-                      {toPersianNumber(riskIndicators.altmanZScore.year2.toFixed(2))}
+                      {toPersianNumber(safeToFixed(riskIndicators.altmanZScore.year2, 2))}
                     </div>
                     <p className="text-xs text-gray-500">
                       {riskIndicators.altmanZScore.year2 > 2.6 ? '✅ امن' : 
@@ -383,7 +389,7 @@ export default function FinancialSummary() {
                   <h3 className="text-sm font-medium text-gray-600 mb-3">درجه اهرم مالی (DFL)</h3>
                   <div className="space-y-2">
                     <div className={`text-3xl font-bold number-font p-3 rounded-lg ${getRiskColor(riskIndicators.dfl.year2, false)}`}>
-                      {toPersianNumber(riskIndicators.dfl.year2.toFixed(2))}
+                      {toPersianNumber(safeToFixed(riskIndicators.dfl.year2, 2))}
                     </div>
                     <p className="text-xs text-gray-500">
                       {riskIndicators.dfl.year2 < 1 ? '✅ کم ریسک' : 
@@ -398,7 +404,7 @@ export default function FinancialSummary() {
                   <h3 className="text-sm font-medium text-gray-600 mb-3">نسبت بدهی خالص به EBITDA</h3>
                   <div className="space-y-2">
                     <div className="text-2xl font-bold number-font p-3 rounded-lg bg-gray-50">
-                      {toPersianNumber(riskIndicators.netDebtToEbitda.year2.toFixed(2))}
+                      {toPersianNumber(safeToFixed(riskIndicators.netDebtToEbitda.year2, 2))}
                     </div>
                     <p className="text-xs text-gray-500">
                       سال‌های بازپرداخت بدهی
@@ -450,7 +456,7 @@ export default function FinancialSummary() {
                         <div key={key} className="text-center p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">{label}</p>
                           <p className="text-lg font-bold number-font">
-                            {suffix === '%' ? toPersianNumber(item.year2.toFixed(2)) : formatNumber(item.year2)}{suffix}
+                            {suffix === '%' ? toPersianNumber(safeToFixed(item.year2, 2)) : formatNumber(item.year2)}{suffix}
                           </p>
                         </div>
                       );

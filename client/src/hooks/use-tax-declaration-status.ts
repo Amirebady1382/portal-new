@@ -17,8 +17,9 @@ export function useTaxDeclarationStatus(companyId?: number): UseQueryResult<TaxD
   return useQuery<TaxDeclarationStatus>({
     queryKey: [`/api/companies/${companyId}/tax-declaration-status`],
     enabled: !!companyId,
-    refetchInterval: (data) => {
-      // اگر در حال پردازش است، هر 3 ثانیه یکبار refresh کن
+    refetchInterval: (query: any) => {
+      // Support both TanStack Query v5 (query object) and older versions (direct data)
+      const data = query?.state?.data !== undefined ? query.state.data : query;
       if (data?.status === 'processing') {
         return 3000;
       }

@@ -18,6 +18,7 @@ export default function TestServices() {
     { id: 'claude', name: 'Claude', type: 'ai' },
     { id: 'gapgpt', name: 'GapGPT', type: 'ai' },
     { id: 'perplexity', name: 'Perplexity', type: 'ai' },
+    { id: 'gemini', name: 'Google Gemini', type: 'ai' },
     { id: 'sms', name: 'SMS.ir', type: 'sms' },
     { id: 'bale', name: 'Bale Bot', type: 'bale' }
   ];

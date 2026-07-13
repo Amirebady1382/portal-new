@@ -288,18 +288,16 @@ export default function ServicesBasedForms({ department, companyId }: ServicesBa
                   </div>
                 </div>
               )}
-              <CardContent>
-                {/* Show related forms/requirements */}
-                {requirements.length > 0 ? (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-4">
-                      فرم‌ها و مدارک مورد نیاز
-                    </h4>
-                    {requirements.map((requirement: any) => renderRequirementCard(requirement, service.id))}
-                  </div>
-                ) : (
-              
-              {requirements.length === 0 && (
+
+              {/* Show related forms/requirements */}
+              {requirements.length > 0 ? (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">
+                    فرم‌ها و مدارک مورد نیاز
+                  </h4>
+                  {requirements.map((requirement: any) => renderRequirementCard(requirement, service.id))}
+                </div>
+              ) : (
                 <div className="text-center py-8 text-gray-500">
                   <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                   <p>هنوز فرم یا مدرکی برای این خدمت تعریف نشده است</p>

@@ -1,4 +1,7 @@
 import type { Request, Response } from "express";
+import fs from "fs/promises";
+import path from "path";
+import { db } from "../db";
 import { investmentReportsService } from "../services/investment-reports.service";
 import { aiReportGenerationService } from "../services/ai-report-generation.service";
 import { formulaEngineService } from "../services/formula-engine.service";
@@ -461,9 +464,55 @@ export class InvestmentReportsController {
         detailLevel
       });
 
+      // Save generated report to filesystem & database so we can list history
+      let dbReportId = null;
+      let htmlFileName = "";
+      try {
+        const reportsDir = path.resolve(process.cwd(), "uploads", "investment-reports");
+        await fs.mkdir(reportsDir, { recursive: true });
+        
+        // Use allowed filename pattern
+        htmlFileName = `investment_report_AI_${companyId}_${Date.now()}.html`;
+        const filePath = path.join(reportsDir, htmlFileName);
+        await fs.writeFile(filePath, result.content);
+        
+        const reportNumber = `AI-${companyId}-${Date.now()}`;
+        const dbResult = await db.execute({
+          sql: `INSERT INTO generated_investment_reports 
+            (company_id, template_id, report_number, report_type, file_name, file_path, file_size, 
+             report_data, status, generated_by, is_public)
+            VALUES (?, ?, ?, 'ai_freetext', ?, ?, ?, ?, 'finalized', ?, ?) RETURNING id`,
+          args: [
+            companyId,
+            1, // templateId
+            reportNumber,
+            htmlFileName,
+            filePath,
+            result.content.length,
+            JSON.stringify({
+              html: result.content,
+              metadata: result.metadata,
+              perplexityResearch: result.perplexityResearch
+            }),
+            req.user.userId,
+            false
+          ]
+        });
+        if (dbResult && dbResult.rows && dbResult.rows[0]) {
+          dbReportId = dbResult.rows[0].id;
+        }
+        logger.info(`✅ AI HTML report saved to database with id ${dbReportId}`, 'investment-reports-controller');
+      } catch (saveError) {
+        logger.error("Failed to save AI report database/file backup", 'investment-reports-controller', saveError as Error);
+      }
+
       res.json({
         success: true,
-        report: result,
+        report: {
+          ...result,
+          id: dbReportId,
+          fileName: htmlFileName
+        },
         message: 'گزارش با موفقیت تولید شد'
       });
 

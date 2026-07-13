@@ -1,10 +1,28 @@
 import { storage } from "../storage";
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from "../utils/logger";
+import { gapGPTService } from "./gap-gpt.service";
 
 // Lazy initialization
 let anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(): any {
+  const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+  if (disableDirect) {
+    return {
+      messages: {
+        create: async (options: any) => {
+          logger.info("🤖 Routing direct Claude call to GapGPT because DISABLE_DIRECT_CLAUDE is active", "messages-ai");
+          const prompt = options.messages?.[0]?.content || "";
+          const systemPrompt = options.system || undefined;
+          const content = await gapGPTService.generateResponse(prompt, systemPrompt);
+          return {
+            content: [{ type: "text", text: content }]
+          };
+        }
+      }
+    };
+  }
+
   if (!anthropicClient) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {

@@ -1,0 +1,45 @@
+{
+  "mcpServers": {
+    "codebase-memory-mcp": {
+      "command": "/root/.local/bin/codebase-memory-mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ]
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://healera_user:eAw6lWfJj%2FXL%2BHSuVATIfz2a7u0fdTQgTEXpmrHhXNM%3D@localhost:5432/healera_production?schema=public"
+      ]
+    },
+    "postgres-portal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://portal_user:portal_password@localhost:5432/portal_db?schema=public"
+      ]
+    },
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git"
+      ]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ]
+    }
+  }
+}

@@ -30,7 +30,9 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    const errorId = crypto.randomUUID();
+    const errorId = typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     this.setState({
       error,
       errorInfo,

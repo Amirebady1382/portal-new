@@ -53,6 +53,7 @@ export default function ServiceWizard({ onSuccess, onCancel, initialService }: S
 
   // State for existing mappings (to know what to remove on edit)
   const [existingMappings, setExistingMappings] = useState<any[]>([]);
+  const [formsLoaded, setFormsLoaded] = useState(false);
 
   // Initialize data if editing
   useEffect(() => {
@@ -88,6 +89,7 @@ export default function ServiceWizard({ onSuccess, onCancel, initialService }: S
 
       setExistingMappings(forms);
       setSelectedForms(forms.map((f: any) => f.documentRequirementId));
+      setFormsLoaded(true);
 
       return result;
     },
@@ -121,28 +123,30 @@ export default function ServiceWizard({ onSuccess, onCancel, initialService }: S
         });
         serviceId = initialService.id;
 
-        // Manage Forms (Diff logic)
-        const currentFormIds = existingMappings.map(m => m.documentRequirementId);
+        // Manage Forms (Diff logic) - only run if existing forms were successfully loaded
+        if (formsLoaded) {
+          const currentFormIds = existingMappings.map(m => m.documentRequirementId);
 
-        // Forms to ADD
-        const toAdd = selectedForms.filter(id => !currentFormIds.includes(id));
+          // Forms to ADD
+          const toAdd = selectedForms.filter(id => !currentFormIds.includes(id));
 
-        // Forms to REMOVE
-        const toRemoveIds = currentFormIds.filter(id => !selectedForms.includes(id));
-        const mappingsToRemove = existingMappings.filter(m => toRemoveIds.includes(m.documentRequirementId));
+          // Forms to REMOVE
+          const toRemoveIds = currentFormIds.filter(id => !selectedForms.includes(id));
+          const mappingsToRemove = existingMappings.filter(m => toRemoveIds.includes(m.documentRequirementId));
 
-        // Add new
-        for (const formId of toAdd) {
-          await apiRequest("POST", `/api/services/${serviceId}/forms`, {
-            documentRequirementId: formId,
-            department: serviceData.department,
-            isRequired: true,
-          });
-        }
+          // Add new
+          for (const formId of toAdd) {
+            await apiRequest("POST", `/api/services/${serviceId}/forms`, {
+              documentRequirementId: formId,
+              department: serviceData.department,
+              isRequired: true,
+            });
+          }
 
-        // Remove old
-        for (const mapping of mappingsToRemove) {
-          await apiRequest("DELETE", `/api/services/forms/${mapping.id}`);
+          // Remove old
+          for (const mapping of mappingsToRemove) {
+            await apiRequest("DELETE", `/api/services/forms/${mapping.id}`);
+          }
         }
 
         toast({

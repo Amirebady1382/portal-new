@@ -4,9 +4,7 @@ import { useRoute, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import Header from "@/components/layout/header";
-import Sidebar from "@/components/layout/sidebar";
-import MobileSidebar from "@/components/layout/mobile-sidebar";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -292,39 +290,25 @@ export default function EmployeeCompanyView() {
 
   if (companyLoading) {
     return (
-      <div className="min-h-screen bg-gray-50" dir="rtl">
-        <Header />
-        <div className="flex">
-          <Sidebar />
-          <MobileSidebar />
-          <main className="flex-1 mr-0 md:mr-64 p-6">
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-pulse">در حال بارگذاری...</div>
-            </div>
-          </main>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-pulse">در حال بارگیری...</div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-gray-50" dir="rtl">
-        <Header />
-        <div className="flex">
-          <Sidebar />
-          <MobileSidebar />
-          <main className="flex-1 mr-0 md:mr-64 p-6">
-            <Card>
-              <CardContent className="p-6 text-center">
-                <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">شرکت یافت نشد</h3>
-                <p className="text-muted-foreground">شرکت درخواستی یافت نشد یا دسترسی به آن ندارید.</p>
-              </CardContent>
-            </Card>
-          </main>
-        </div>
-      </div>
+      <DashboardLayout>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">شرکت یافت نشد</h3>
+            <p className="text-muted-foreground">شرکت درخواستی یافت نشد یا دسترسی به آن ندارید.</p>
+          </CardContent>
+        </Card>
+      </DashboardLayout>
     );
   }
 
@@ -341,14 +325,8 @@ export default function EmployeeCompanyView() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <MobileSidebar />
-        
-        <main className="flex-1 mr-0 md:mr-64 p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto px-2 lg:px-0">
+    <DashboardLayout>
+      <div className="max-w-7xl mx-auto px-2 lg:px-0 text-right" dir="rtl">
             {/* Header */}
             <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
               <div className="flex flex-col space-y-4">
@@ -503,7 +481,7 @@ export default function EmployeeCompanyView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
+                      <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                         <Building className="h-5 w-5" />
                         اطلاعات پایه
                       </CardTitle>
@@ -545,7 +523,7 @@ export default function EmployeeCompanyView() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
+                      <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                         <MapPin className="h-5 w-5" />
                         اطلاعات تماس
                       </CardTitle>
@@ -575,7 +553,7 @@ export default function EmployeeCompanyView() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                       <FileText className="h-5 w-5" />
                       اطلاعات ثبتی
                     </CardTitle>
@@ -607,7 +585,7 @@ export default function EmployeeCompanyView() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Card>
                         <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                             <Building className="h-5 w-5" />
                             اطلاعات رسمی شرکت
                             <Button 
@@ -657,7 +635,7 @@ export default function EmployeeCompanyView() {
 
                       <Card>
                         <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                             <MapPin className="h-5 w-5" />
                             آدرس و تماس
                           </CardTitle>
@@ -698,7 +676,7 @@ export default function EmployeeCompanyView() {
 
                       <Card>
                         <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                             <CreditCard className="h-5 w-5" />
                             اطلاعات مالی و ثبتی
                           </CardTitle>
@@ -736,7 +714,7 @@ export default function EmployeeCompanyView() {
                       {rasmioData.basicInfo.website && (
                         <Card>
                           <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                               <Globe className="h-5 w-5" />
                               اطلاعات آنلاین
                             </CardTitle>
@@ -763,7 +741,7 @@ export default function EmployeeCompanyView() {
                     {rasmioData.news && rasmioData.news.length > 0 && (
                       <Card>
                         <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                             <Newspaper className="h-5 w-5" />
                             آگهی‌های روزنامه رسمی
                             <Badge variant="outline" className="mr-2">
@@ -774,21 +752,21 @@ export default function EmployeeCompanyView() {
                         <CardContent>
                           <div className="space-y-4">
                             {rasmioData.news.map((newsItem: any, index: number) => (
-                              <div key={newsItem.id || index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                              <div key={newsItem.id || index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors text-right" dir="rtl">
                                 <div className="flex justify-between items-start mb-2">
-                                  <h4 className="font-medium text-lg">{newsItem.title}</h4>
+                                  <h4 className="font-medium text-lg text-right">{newsItem.title}</h4>
                                   <Badge variant="secondary" className="text-xs">
                                     شماره {toPersianNumber(newsItem.newspaperNumber || 'نامشخص')}
                                   </Badge>
                                 </div>
                                 
                                 {newsItem.description && (
-                                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed text-right">
                                     {newsItem.description}
                                   </p>
                                 )}
                                 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground text-right">
                                   {newsItem.newspaperDate && (
                                     <div>
                                       <span className="font-medium">تاریخ چاپ:</span>
@@ -1254,7 +1232,7 @@ export default function EmployeeCompanyView() {
               <TabsContent value="ai-analysis" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                       <Brain className="h-5 w-5" />
                       تحلیل هوش مصنوعی
                     </CardTitle>
@@ -1408,7 +1386,7 @@ export default function EmployeeCompanyView() {
                               {/* تحلیل تیم */}
                               <Card>
                                 <CardHeader>
-                                  <CardTitle className="flex items-center gap-2">
+                                  <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                     <Users className="h-5 w-5" />
                                     تحلیل تیم
                                     <div className="mr-auto flex items-center gap-1">
@@ -1449,7 +1427,7 @@ export default function EmployeeCompanyView() {
                               {/* تحلیل محصول */}
                               <Card>
                                 <CardHeader>
-                                  <CardTitle className="flex items-center gap-2">
+                                  <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                     <Target className="h-5 w-5" />
                                     تحلیل محصول
                                     <div className="mr-auto flex items-center gap-1">
@@ -1482,7 +1460,7 @@ export default function EmployeeCompanyView() {
                               {/* تحلیل بازار */}
                               <Card>
                                 <CardHeader>
-                                  <CardTitle className="flex items-center gap-2">
+                                  <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                     <BarChart3 className="h-5 w-5" />
                                     تحلیل بازار
                                     <div className="mr-auto flex items-center gap-1">
@@ -1519,7 +1497,7 @@ export default function EmployeeCompanyView() {
                               {/* تحلیل مالی */}
                               <Card>
                                 <CardHeader>
-                                  <CardTitle className="flex items-center gap-2">
+                                  <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                     <PieChartIcon className="h-5 w-5" />
                                     تحلیل مالی
                                     <div className="mr-auto flex items-center gap-1">
@@ -1554,7 +1532,7 @@ export default function EmployeeCompanyView() {
                             {aiAnalysis.formAnalysis && (
                               <Card>
                                 <CardHeader>
-                                  <CardTitle className="flex items-center gap-2">
+                                  <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                     <FileText className="h-5 w-5" />
                                     تحلیل فرم‌ها و مدارک
                                     <div className="mr-auto flex items-center gap-1">
@@ -1618,7 +1596,7 @@ export default function EmployeeCompanyView() {
                             {/* تحلیل ریسک */}
                             <Card>
                               <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                   <AlertOctagon className="h-5 w-5" />
                                   تحلیل ریسک
                                   <div className="mr-auto flex items-center gap-1">
@@ -1659,7 +1637,7 @@ export default function EmployeeCompanyView() {
                             {/* گام‌های بعدی */}
                             <Card>
                               <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-right" dir="rtl">
                                   <CheckCircle className="h-5 w-5" />
                                   گام‌های بعدی پیشنهادی
                                 </CardTitle>
@@ -1686,8 +1664,6 @@ export default function EmployeeCompanyView() {
               </TabsContent>
             </Tabs>
           </div>
-        </main>
-      </div>
       
       {/* Form Content Viewer Modal */}
       {selectedFormSubmission && (
@@ -1700,6 +1676,6 @@ export default function EmployeeCompanyView() {
           submission={selectedFormSubmission}
         />
       )}
-    </div>
+    </DashboardLayout>
   );
 }

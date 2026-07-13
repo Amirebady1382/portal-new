@@ -636,7 +636,7 @@ export default function AIAnalysisWithHistory() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 text-right" dir="rtl">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Brain className="w-8 h-8 text-blue-600" />
@@ -832,7 +832,8 @@ export default function AIAnalysisWithHistory() {
                             value={currentMessage}
                             onChange={(e) => setCurrentMessage(e.target.value)}
                             placeholder="سوال یا درخواست خود را بنویسید..."
-                            className="min-h-[80px] resize-none"
+                            className="min-h-[80px] resize-none text-right"
+                            dir="rtl"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
@@ -978,7 +979,8 @@ export default function AIAnalysisWithHistory() {
                                       id: session.id,
                                       title: e.target.value
                                     })}
-                                    className="text-sm"
+                                    className="text-sm text-right"
+                                    dir="rtl"
                                     onKeyPress={(e) => {
                                       if (e.key === 'Enter') {
                                         updateSessionTitle(session.id, editingSessionTitle.title);

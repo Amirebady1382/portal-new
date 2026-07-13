@@ -55,7 +55,24 @@ export class AIVariableDetectionService {
   /**
    * Get Anthropic client with lazy initialization
    */
-  private getAnthropicClient(): Anthropic {
+  private getAnthropicClient(): any {
+    const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+    if (disableDirect) {
+      return {
+        messages: {
+          create: async (options: any) => {
+            logger.info("🤖 Routing direct Claude call to GapGPT because DISABLE_DIRECT_CLAUDE is active", "ai-var-detect");
+            const prompt = options.messages?.[0]?.content || "";
+            const systemPrompt = options.system || undefined;
+            const content = await gapGPTService.generateResponse(prompt, systemPrompt);
+            return {
+              content: [{ type: "text", text: content }]
+            };
+          }
+        }
+      };
+    }
+
     if (!this.anthropic) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {

@@ -118,19 +118,30 @@ export class TaxDeclarationExtractorService {
       }
       
       let extractedData: any;
+      const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
       
-      try {
-        // اول تلاش با Claude (اصلی)
-        extractedData = await this.extractWithClaude(buffer, filePath);
-      } catch (claudeError: any) {
-        logger.warn(`⚠️ خطا در استخراج با Claude: ${claudeError.message}. تلاش با GapGPT...`, 'tax-extractor');
-        
-        // در صورت خطا، تلاش با GapGPT (پشتیبان)
+      if (disableDirect) {
+        logger.info(`ℹ️ Direct Claude is disabled. Calling GapGPT directly.`, 'tax-extractor');
         try {
           extractedData = await this.extractWithGapGPT(filePath);
         } catch (gapError: any) {
           logger.error(`❌ خطا در استخراج با GapGPT: ${gapError.message}`, 'tax-extractor');
-          throw new Error(`استخراج اطلاعات با هر دو هوش مصنوعی شکست خورد: ${claudeError.message} | ${gapError.message}`);
+          throw new Error(`استخراج اطلاعات با هوش مصنوعی شکست خورد: ${gapError.message}`);
+        }
+      } else {
+        try {
+          // اول تلاش با Claude (اصلی)
+          extractedData = await this.extractWithClaude(buffer, filePath);
+        } catch (claudeError: any) {
+          logger.warn(`⚠️ خطا در استخراج با Claude: ${claudeError.message}. تلاش با GapGPT...`, 'tax-extractor');
+          
+          // در صورت خطا، تلاش با GapGPT (پشتیبان)
+          try {
+            extractedData = await this.extractWithGapGPT(filePath);
+          } catch (gapError: any) {
+            logger.error(`❌ خطا در استخراج با GapGPT: ${gapError.message}`, 'tax-extractor');
+            throw new Error(`استخراج اطلاعات با هر دو هوش مصنوعی شکست خورد: ${claudeError.message} | ${gapError.message}`);
+          }
         }
       }
       

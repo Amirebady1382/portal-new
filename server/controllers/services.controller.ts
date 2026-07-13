@@ -244,32 +244,29 @@ export class ServicesController {
           res.status(403).json({ message: "دسترسی به این شرکت محدود است" });
           return;
         }
+      }
 
-        // --- NEW: Check for active requests ---
-        // We only block if there is a 'pending' or 'in_review' request. 
-        // Requests in other statuses (e.g. approved, completed, rejected) are fine.
-        const activeRequests = await servicesService.getServiceRequests({
-          serviceId,
-          companyId
-        });
-        
-        // Check for any non-finalized requests
-        const hasActive = activeRequests.requests.some(r => 
-          ['pending', 'in_review', 'investment_review', 'administrative_review'].includes(r.status)
-        );
+      // Prevent duplicate active requests for the same company and service across all submitters
+      const activeRequests = await servicesService.getServiceRequests({
+        serviceId,
+        companyId
+      });
+      
+      const hasActive = activeRequests.requests.some(r => 
+        ['pending', 'in_review', 'investment_review', 'administrative_review'].includes(r.status)
+      );
 
-        console.log("🔍 Debugging Active Request Check (Robust):", {
-          serviceId,
-          companyId,
-          totalRequestsFound: activeRequests.requests.length,
-          hasActive,
-          activeRequests: activeRequests.requests.map(r => ({ id: r.id, status: r.status }))
-        });
-        
-        if (hasActive) {
-          res.status(400).json({ message: "شما در حال حاضر یک درخواست فعال (در حال بررسی) برای این خدمت دارید." });
-          return;
-        }
+      console.log("🔍 Debugging Active Request Check (Robust):", {
+        serviceId,
+        companyId,
+        totalRequestsFound: activeRequests.requests.length,
+        hasActive,
+        activeRequests: activeRequests.requests.map(r => ({ id: r.id, status: r.status }))
+      });
+      
+      if (hasActive) {
+        res.status(400).json({ message: "در حال حاضر یک درخواست فعال (در حال بررسی) برای این خدمت و شرکت وجود دارد." });
+        return;
       }
 
       const requestPayload = {
@@ -283,8 +280,10 @@ export class ServicesController {
 
       const serviceRequest = await servicesService.createServiceRequest(requestPayload);
 
-      // Create workflow for this request
-      const workflow = await workflowService.createWorkflow(serviceRequest.id);
+      // NOTE: workflowService.createWorkflow() is already called inside
+      // servicesService.createServiceRequest() — do NOT call it again here.
+      // Fetch the workflow record that was already created:
+      const workflow = await workflowService.getWorkflowByRequestId(serviceRequest.id);
 
       // Log the request creation
       await storage.createAuditLog({
@@ -307,9 +306,9 @@ export class ServicesController {
         workflow,
         message: "درخواست با موفقیت ثبت شد"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Create service request error:", error);
-      res.status(500).json({ message: "خطای سیستم" });
+      res.status(500).json({ message: error.message || "خطای سیستم" });
     }
   }
 
@@ -826,7 +825,12 @@ export class ServicesController {
       });
     } catch (error: any) {
       console.error("Transfer to administrative error:", error);
-      res.status(400).json({ message: error.message || "خطای سیستم" });
+      // All errors from this workflow endpoint are operational (wrong stage, missing record, etc.)
+      // A true system failure (DB down) would prevent the server responding at all.
+      res.status(400).json({ 
+        message: error.message || "خطا در ارجاع درخواست به واحد اداری",
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 
@@ -889,7 +893,11 @@ export class ServicesController {
       });
     } catch (error: any) {
       console.error("Complete service request error:", error);
-      res.status(400).json({ message: error.message || "خطای سیستم" });
+      // All errors from this workflow endpoint are operational (wrong stage, missing record, etc.)
+      res.status(400).json({ 
+        message: error.message || "خطا در تکمیل درخواست",
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 
@@ -929,9 +937,21 @@ export class ServicesController {
         workflow,
         message: "فرم‌ها با موفقیت ثبت شد"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Mark forms completed error:", error);
-      res.status(500).json({ message: "خطای سیستم" });
+      // IMPORTANT: Errors from validateFormsCompletion are OPERATIONAL (e.g., "missing forms").
+      // They must be returned as 400 with the descriptive message — never swallowed as 500.
+      const isOperationalError = error.message && (
+        error.message.includes('لطفاً') ||
+        error.message.includes('فرم') ||
+        error.message.includes('Workflow not found') ||
+        error.message.includes('مرحله')
+      );
+      const statusCode = isOperationalError ? 400 : 500;
+      res.status(statusCode).json({ 
+        message: error.message || "خطا در ثبت فرم‌ها",
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 }

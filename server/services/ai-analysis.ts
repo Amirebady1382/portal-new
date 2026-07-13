@@ -7,6 +7,7 @@ import { storage } from '../storage';
 import { pitchDeckExtractorService } from './pitch-deck-extractor.service';
 import { gapGPTService } from './gap-gpt.service';
 import { aiOrchestrator } from './ai-orchestrator.service';
+import PDFParser from 'pdf2json';
 // Remove static import: import pdf from 'pdf-parse';
 
 // 🚀 استفاده از قوی‌ترین مدل موجود - Claude 4 Sonnet
@@ -22,7 +23,24 @@ function getAnthropicApiKey(): string {
 }
 
 let anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(): any {
+  const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+  if (disableDirect) {
+    return {
+      messages: {
+        create: async (options: any) => {
+          logger.info("🤖 Routing direct Claude call to GapGPT because DISABLE_DIRECT_CLAUDE is active", "ai-analysis");
+          const prompt = options.messages?.[0]?.content || "";
+          const systemPrompt = options.system || undefined;
+          const content = await gapGPTService.generateResponse(prompt, systemPrompt);
+          return {
+            content: [{ type: "text", text: content }]
+          };
+        }
+      }
+    };
+  }
+
   if (!anthropicClient) {
     anthropicClient = new Anthropic({
       apiKey: getAnthropicApiKey(),
@@ -1047,9 +1065,34 @@ export class AIAnalysisService {
           };
         }
 
-        // پردازش PDF با Claude Document API
+        // ۱. تلاش برای استخراج متنی به صورت محلی با pdf2json (بسیار سریع و بدون مصرف کلید)
         try {
-          logger.debug(`   📖 خواندن فایل PDF...`, 'ai-analysis');
+          logger.info(`   📖 تلاش برای استخراج متنی محلی از PDF: ${fileName}`, 'ai-analysis');
+          const pdfParser = new (PDFParser as any)(null, 1);
+          const rawText: string = await new Promise((resolve, reject) => {
+            pdfParser.on("pdfParser_dataError", (errData: any) => reject(new Error(errData.parserError)));
+            pdfParser.on("pdfParser_dataReady", () => {
+              resolve(pdfParser.getRawTextContent());
+            });
+            pdfParser.loadPDF(convertedPath);
+          });
+
+          if (rawText && rawText.trim().length > 100) {
+            logger.info(`   ✅ استخراج محلی موفقیت‌آمیز بود! (${rawText.length} کاراکتر)`, 'ai-analysis');
+            return {
+              fileName,
+              content: `📄 محتوای کامل استخراج شده از PDF "${fileName}":\n\n${rawText.trim()}`,
+              extractionMethod: 'local-pdf2json'
+            };
+          }
+          logger.info(`   ⚠️ متن استخراج شده محلی خالی یا بسیار کوتاه است (${rawText?.length || 0} کاراکتر). استفاده از مدل هوش مصنوعی...`, 'ai-analysis');
+        } catch (localError) {
+          logger.warn(`   ⚠️ خطای استخراج محلی: ${localError instanceof Error ? localError.message : String(localError)}. تلاش با مدل...`, 'ai-analysis');
+        }
+
+        // ۲. پردازش PDF با Claude/GapGPT Document API (در صورت عدم موفقیت استخراج متنی)
+        try {
+          logger.debug(`   📖 خواندن فایل PDF برای ارسال به هوش مصنوعی...`, 'ai-analysis');
           const buffer = await fs.readFile(convertedPath);
           const fileSize = Math.round(buffer.length / 1024);
 

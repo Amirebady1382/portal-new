@@ -15,7 +15,8 @@ export class AIOrchestratorService {
 
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (apiKey) {
+    const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+    if (apiKey && !disableDirect) {
       this.anthropic = new Anthropic({ apiKey });
     }
   }
@@ -31,7 +32,7 @@ export class AIOrchestratorService {
       try {
         logger.info(`🤖 Calling Primary AI (Claude)...`, 'ai-orchestrator');
         
-        const modelId = options.model || process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022';
+        const modelId = options.model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
         
         const response = await Promise.race([
           this.anthropic.messages.create({

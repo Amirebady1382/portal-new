@@ -80,6 +80,10 @@ export const db = {
       updated = updated.replace(/\bBOOLEAN\s+DEFAULT\s+1\b/gi, 'BOOLEAN DEFAULT true');
       updated = updated.replace(/\bBOOLEAN\s+DEFAULT\s+0\b/gi, 'BOOLEAN DEFAULT false');
       
+      if (updated.toUpperCase().includes('INSERT OR REPLACE INTO')) {
+        updated = updated.replace(/INSERT OR REPLACE INTO/gi, 'INSERT INTO');
+      }
+
       if (updated.toUpperCase().includes('INSERT OR IGNORE')) {
         updated = updated.replace(/INSERT OR IGNORE INTO/gi, 'INSERT INTO');
         if (!updated.toUpperCase().includes('ON CONFLICT')) {

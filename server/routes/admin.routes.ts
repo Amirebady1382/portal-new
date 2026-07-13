@@ -96,13 +96,20 @@ adminRoutes.get("/test-services/bale", authMiddleware, requireRole(["admin"]) as
 adminRoutes.get("/test-services/ai/claude", authMiddleware, requireRole(["admin"]) as any, async (req, res) => {
   const start = Date.now();
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
-    await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1,
-      messages: [{ role: "user", content: "ping" }]
-    }, { timeout: 5000 });
-    res.json({ isOnline: true, responseTime: Date.now() - start });
+    const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+    if (disableDirect) {
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+      await Promise.race([gapGPTService.generateResponse("ping"), timeoutPromise]);
+      res.json({ isOnline: true, responseTime: Date.now() - start, info: "Tested via GapGPT (claude-sonnet-4-6)" });
+    } else {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+      await anthropic.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 1,
+        messages: [{ role: "user", content: "ping" }]
+      }, { timeout: 5000 });
+      res.json({ isOnline: true, responseTime: Date.now() - start });
+    }
   } catch (error) {
     res.json({ isOnline: false, error: error instanceof Error ? error.message : "Claude error", responseTime: Date.now() - start });
   }
@@ -127,5 +134,29 @@ adminRoutes.get("/test-services/ai/perplexity", authMiddleware, requireRole(["ad
     res.json({ isOnline: true, responseTime: Date.now() - start });
   } catch (error) {
     res.json({ isOnline: false, error: error instanceof Error ? error.message : "Perplexity error", responseTime: Date.now() - start });
+  }
+});
+
+adminRoutes.get("/test-services/ai/gemini", authMiddleware, requireRole(["admin"]) as any, async (req, res) => {
+  const start = Date.now();
+  try {
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error("GOOGLE_AI_API_KEY is not configured");
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+    
+    const testCall = async () => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] })
+      });
+      if (!response.ok) throw new Error(`Gemini returned status ${response.status}`);
+    };
+
+    await Promise.race([testCall(), timeoutPromise]);
+    res.json({ isOnline: true, responseTime: Date.now() - start });
+  } catch (error) {
+    res.json({ isOnline: false, error: error instanceof Error ? error.message : "Gemini error", responseTime: Date.now() - start });
   }
 });

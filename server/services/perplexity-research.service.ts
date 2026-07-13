@@ -222,7 +222,7 @@ export class PerplexityResearchService {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 120000 // 2 minutes timeout
+          timeout: 15000 // 15 seconds timeout
         }
       );
 

@@ -219,7 +219,8 @@ export default function TaxDeclarationModal({ open, companyId, onComplete }: Tax
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | null | undefined) => {
+    if (num === null || num === undefined) return '-';
     if (num === 0) return '0';
     if (Math.abs(num) >= 1_000_000_000) {
       return `${toPersianNumber((num / 1_000_000_000).toFixed(1))} میلیارد`;

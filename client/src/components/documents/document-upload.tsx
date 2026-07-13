@@ -67,14 +67,15 @@ export default function DocumentUpload({ companyId, category: defaultCategory = 
 
         xhr.onerror = () => reject(new Error("خطا در آپلود فایل"));
 
-        // Get auth token from localStorage
+        const endpoint = companyId ? `/api/companies/${companyId}/documents` : "/api/documents";
+        xhr.open("POST", endpoint);
+
+        // Get auth token from localStorage (headers must be set AFTER open)
         const token = localStorage.getItem("auth_token");
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
 
-        const endpoint = companyId ? `/api/companies/${companyId}/documents` : "/api/documents";
-        xhr.open("POST", endpoint);
         xhr.send(formData);
       });
     },

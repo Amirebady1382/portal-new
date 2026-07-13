@@ -79,3 +79,22 @@ export async function seedDatabase() {
     throw error;
   }
 }
+
+import { fileURLToPath } from "url";
+
+if (process.argv[1] && (process.argv[1].endsWith('seed.ts') || process.argv[1].endsWith('seed.js')) && !process.argv[1].includes('index.')) {
+  (async () => {
+    try {
+      const { initializeDatabase, closeDatabase } = await import("./db");
+      await initializeDatabase();
+      await seedDatabase();
+      await closeDatabase();
+      console.log("👋 Done!");
+      process.exit(0);
+    } catch (e) {
+      console.error("Fatal seed error:", e);
+      process.exit(1);
+    }
+  })();
+}
+

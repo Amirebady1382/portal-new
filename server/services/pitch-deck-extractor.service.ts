@@ -2,12 +2,42 @@ import fs from 'fs/promises';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger';
+import { gapGPTService } from './gap-gpt.service';
 
 const DEFAULT_MODEL = 'claude-3-5-sonnet-20241022';
 
 // Helper to get Anthropic client
 let anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(): any {
+  const disableDirect = process.env.DISABLE_DIRECT_CLAUDE === 'true';
+  if (disableDirect) {
+    return {
+      messages: {
+        create: async (options: any) => {
+          logger.info("🤖 Routing direct Claude call to GapGPT because DISABLE_DIRECT_CLAUDE is active", "pitch-deck-ai");
+          // Format prompt from messages/content
+          const systemPrompt = options.system || undefined;
+          let prompt = "";
+          
+          if (options.messages?.[0]?.content) {
+            const content = options.messages[0].content;
+            if (Array.isArray(content)) {
+              // Extract text parts
+              prompt = content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join("\n") || "Extract text from the attached pitch deck document.";
+            } else {
+              prompt = String(content);
+            }
+          }
+          
+          const content = await gapGPTService.generateResponse(prompt, systemPrompt);
+          return {
+            content: [{ type: "text", text: content }]
+          };
+        }
+      }
+    };
+  }
+
   if (!anthropicClient) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {

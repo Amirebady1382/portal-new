@@ -58,14 +58,15 @@ export class OtpService {
         log(`🗑️ کدهای قبلی برای ${phone} پاک شد`, "otp");
 
         const code = smsService.generateOTPCode();
-        const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
+        const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+        const createdAt = new Date();
 
-        log(`🔐 کد OTP جدید: ${code} - انقضا: ${expiresAt}`, "otp");
+        log(`🔐 کد OTP جدید: ${code} - انقضا: ${expiresAt.toISOString()}`, "otp");
 
         // Insert new OTP
         await db.execute(
-          `INSERT INTO otp_codes (phone, code, purpose, attempts, is_used, expires_at, created_at) VALUES (?, ?, ?, 0, false, ?, NOW())`,
-          [phone, code, purpose, expiresAt]
+          `INSERT INTO otp_codes (phone, code, purpose, attempts, is_used, expires_at, created_at) VALUES (?, ?, ?, 0, false, ?, ?)`,
+          [phone, code, purpose, expiresAt, createdAt]
         );
 
         // Send SMS outside transaction to avoid holding locks too long
