@@ -3,15 +3,13 @@ set -e
 
 # ==============================================================================
 # Automated Destination Server Deployment & Restore Script (deploy-destination.sh)
-# Gilan Research & Technology Fund Portal - Deployment Automation
+# Gilan Research & Technology Fund Portal - Offline / Direct Bundle Deployment
 # ==============================================================================
 
-REPO_URL="https://github.com/Amirebady1382/portal-new.git"
-PROJECT_DIR="portal-new"
-TRANSFER_ARCHIVE="transfer-pack.tar.gz"
+ARCHIVE_FILE="full-portal-bundle.tar.gz"
 
 echo "=========================================================================="
-echo "🚀 شروع فرآیند استقرار خودکار سامانه روی سرور مقصد"
+echo "🚀 شروع فرآیند استقرار خودکار و آفلاین سامانه روی سرور مقصد"
 echo "=========================================================================="
 
 # 1. بررسی نصب بودن Docker و Docker Compose
@@ -20,32 +18,25 @@ if ! command -v docker &> /dev/null; then
   exit 1
 fi
 
-echo "✅ Docker نصب است."
+echo "✅ ابزار Docker نصب است."
 
-# 2. دریافت یا به‌روزرسانی کدها از مخزن Git
-if [ -d "$PROJECT_DIR" ]; then
-  echo "🔄 پوشه پروژه از قبل وجود دارد. دریافت آخرین تغییرات از Git..."
-  cd "$PROJECT_DIR"
-  git pull origin main
+# 2. بررسی و اکسترکت فایل فشرده پروژه (اگر فایل .tar.gz در مسیر جاری باشد)
+if [ -f "$ARCHIVE_FILE" ]; then
+  echo "📦 فایل آرشیو پروژه ($ARCHIVE_FILE) یافت شد. در حال اکسترکت..."
+  tar -xzvf "$ARCHIVE_FILE"
+elif [ -f "transfer-pack.tar.gz" ]; then
+  echo "📦 فایل آرشیو اطلاعات (transfer-pack.tar.gz) یافت شد. در حال اکسترکت..."
+  tar -xzvf "transfer-pack.tar.gz"
 else
-  echo "📥 کلون پروژه از مخزن Git..."
-  git clone "$REPO_URL" "$PROJECT_DIR"
-  cd "$PROJECT_DIR"
+  echo "ℹ️ فایل آرشیوی یافت نشد. فرض بر این است که فایل‌ها از قبل در این پوشه اکسترکت شده‌اند."
 fi
 
-# 3. بررسی و اکسترکت فایل‌های انتقالی (env، دیتابیس و آپلودها)
-if [ -f "../$TRANSFER_ARCHIVE" ]; then
-  echo "📦 فایل بسته‌بندی انتقال ($TRANSFER_ARCHIVE) یافت شد. در حال اکسترکت..."
-  tar -xzvf "../$TRANSFER_ARCHIVE" -C .
-elif [ -f "./$TRANSFER_ARCHIVE" ]; then
-  echo "📦 فایل بسته‌بندی انتقال ($TRANSFER_ARCHIVE) یافت شد. در حال اکسترکت..."
-  tar -xzvf "./$TRANSFER_ARCHIVE" -C .
-else
-  echo "⚠️ هشدار: فایل $TRANSFER_ARCHIVE یافت نشد!"
-  echo "لطفاً مطمئن شوید فایل .env، فایل بکاپ portal_db_backup.sql و پوشه uploads در پوشه پروژه قرار دارند."
+# 3. بررسی وجود فایل‌های ضروری پروژه (.env و docker-compose.yml)
+if [ ! -f "docker-compose.yml" ]; then
+  echo "❌ فایل docker-compose.yml یافت نشد! لطفاً اسکریپت را درون پوشه پروژه اجرا کنید."
+  exit 1
 fi
 
-# بررسی وجود فایل .env
 if [ ! -f ".env" ]; then
   echo "❌ فایل .env یافت نشد! لطفاً فایل .env را در مسیر پروژه قرار دهید."
   exit 1
